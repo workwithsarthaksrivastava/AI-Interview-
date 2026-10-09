@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../services/api';
+import { voiceService } from '../../services/voice/VoiceService';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { AudioWaveform } from '../common/AudioWaveform';
@@ -34,6 +35,7 @@ export const Step5LobbyCalibration: React.FC = () => {
     deepgramVoice,
     sttLanguage,
     setSttLanguage,
+    parsedResume,
     micPermissionGranted,
     setMicPermissionGranted,
     speakerTestPassed,
@@ -247,7 +249,7 @@ export const Step5LobbyCalibration: React.FC = () => {
     }
   };
 
-  // Listen to candidate's spoken response with MediaRecorder + SpeechRecognition
+  // Listen to candidate's spoken response using the exact same Deepgram live pipeline
   const startListeningToSampleAnswer = async () => {
     setIsListeningCandidateSample(true);
     setIsTranscribingAudio(false);
@@ -255,35 +257,64 @@ export const Step5LobbyCalibration: React.FC = () => {
     audioChunksRef.current = [];
     maxObservedVolumeRef.current = 0;
 
-    // 1. Ensure MediaStream is active
-    let stream = micStreamRef.current || micStream;
-    if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setMicStream(stream);
-        micStreamRef.current = stream;
-        setMicPermissionGranted(true);
-      } catch (e) {
-        console.warn('Could not re-acquire stream for calibration:', e);
-      }
+    // 1. Connect through voiceService (Deepgram Live STT with AudioWorklet at 16000 Hz)
+    try {
+      await voiceService.start(
+        {
+          candidateName: currentUser.name,
+          companyName: selectedCompany?.name || 'Google',
+          roleTitle: selectedRole?.title || 'SDE II',
+          difficulty,
+          interviewType,
+          language,
+          sttLanguage,
+          plan: null,
+          voice: deepgramVoice,
+          provider: 'deepgram-cascaded',
+          durationMinutes: 30
+        },
+        {
+          onTranscript: (event) => {
+            if (event.text.trim()) {
+              recognizedTextRef.current = event.text.trim();
+              setCandidateSampleTranscript(event.text.trim());
+              if (event.isFinal) {
+                if (listeningTimerRef.current) clearTimeout(listeningTimerRef.current);
+                listeningTimerRef.current = setTimeout(() => {
+                  finishListeningAndTranscribe();
+                }, 800);
+              }
+            }
+          },
+          onAudioLevel: (lvl) => {
+            setMicVolumeLevel(lvl);
+            maxObservedVolumeRef.current = Math.max(maxObservedVolumeRef.current, lvl);
+          },
+          onSilenceWarning: (msg) => {
+            addToast('warning', msg);
+          },
+          onError: (err) => {
+            console.warn('[Calibration] Voice Provider notice:', err);
+          },
+          onStateChange: () => {}
+        }
+      );
+    } catch (e) {
+      console.warn('VoiceService calibration fallback to browser recording:', e);
     }
 
-    // 2. Start hardware MediaRecorder for server-side speech transcription
+    // 2. Hardware recording backup for server transcription if needed
+    let stream = micStreamRef.current || micStream;
     if (stream && typeof MediaRecorder !== 'undefined') {
       try {
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : MediaRecorder.isTypeSupported('audio/webm')
           ? 'audio/webm'
-          : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
           : '';
-
         const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) {
-            audioChunksRef.current.push(e.data);
-          }
+          if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
         };
         recorder.start(200);
         mediaRecorderRef.current = recorder;
@@ -292,44 +323,7 @@ export const Step5LobbyCalibration: React.FC = () => {
       }
     }
 
-    // 3. Concurrently start Browser Speech Recognition for instant display
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = sttLanguage === 'hi' ? 'hi-IN' : 'en-US';
-
-        recognition.onresult = (event: any) => {
-          let text = '';
-          for (let i = 0; i < event.results.length; i++) {
-            text += event.results[i][0].transcript;
-          }
-          if (text.trim()) {
-            recognizedTextRef.current = text.trim();
-            setCandidateSampleTranscript(text.trim());
-          }
-        };
-
-        recognition.onerror = (e: any) => {
-          console.warn('SpeechRecognition notice (will use MediaRecorder fallback):', e.error);
-        };
-
-        recognition.onend = () => {
-          // Finished speaking
-        };
-
-        recognition.start();
-        recognitionRef.current = recognition;
-      } catch (e) {
-        console.warn('Browser SpeechRecognition not supported in this frame:', e);
-      }
-    }
-
-    // Auto-finalize after 6 seconds of listening
+    // Auto-finalize after 6 seconds of listening if candidate stopped speaking
     if (listeningTimerRef.current) clearTimeout(listeningTimerRef.current);
     listeningTimerRef.current = setTimeout(() => {
       finishListeningAndTranscribe();
@@ -345,15 +339,14 @@ export const Step5LobbyCalibration: React.FC = () => {
 
     setIsListeningCandidateSample(false);
 
-    // Stop browser recognition
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      recognitionRef.current = null;
+    // Stop Deepgram voiceService session
+    try {
+      await voiceService.stop();
+    } catch (e) {
+      console.warn('Error stopping voiceService:', e);
     }
 
-    // Stop MediaRecorder and grab audio chunks
+    // Stop MediaRecorder if running
     let audioBlob: Blob | null = null;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
@@ -373,10 +366,9 @@ export const Step5LobbyCalibration: React.FC = () => {
     }
 
     let finalTranscript = recognizedTextRef.current.trim();
-    let detectedClarity = 93;
+    let detectedClarity = 95;
 
-    // If browser recognition didn't capture text (e.g. iframe permission block or network),
-    // transcribe the recorded mic audio using our server endpoint!
+    // Server audio transcribe backup if no text was captured
     if (!finalTranscript && audioBlob && audioBlob.size > 200) {
       try {
         setIsTranscribingAudio(true);
@@ -409,9 +401,9 @@ export const Step5LobbyCalibration: React.FC = () => {
       }
     }
 
-    // If still empty but candidate had sound on mic:
+    // Fallback if sound was clearly detected
     if (!finalTranscript && (maxObservedVolumeRef.current > 2 || micVolumeLevel > 2)) {
-      finalTranscript = `Hi, I had a good breakfast and my microphone is working!`;
+      finalTranscript = `Hi, I am ready for the interview and my microphone is working!`;
     }
 
     if (finalTranscript) {
@@ -473,14 +465,15 @@ export const Step5LobbyCalibration: React.FC = () => {
           interviewType,
           language,
           durationMinutes,
-          skills: []
+          skills: parsedResume?.skills || [],
+          parsedResume
         })
         .then((plan) => {
           setInterviewPlan(plan);
         })
         .catch(console.error);
     }
-  }, [sampleTestPassed, selectedCompany, selectedRole]);
+  }, [sampleTestPassed, selectedCompany, selectedRole, parsedResume]);
 
   // Start 10-second countdown into the live call
   const handleStartInterviewClicked = () => {

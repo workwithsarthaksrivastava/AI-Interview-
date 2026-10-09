@@ -130,6 +130,12 @@ export class VoiceManager {
     }
   }
 
+  setMicMuted(muted: boolean): void {
+    if (this.activeProvider?.setMicMuted) {
+      this.activeProvider.setMicMuted(muted);
+    }
+  }
+
   // Voice & Language compatibility checker
   static checkLanguageCompatibility(
     language: string,

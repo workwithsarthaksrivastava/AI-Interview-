@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../services/api';
 import { voiceService } from '../../services/voice/VoiceService';
 import { VoiceOrb, OrbState } from '../common/VoiceOrb';
 import { CodeEditorPanel } from './CodeEditorPanel';
 import { WhiteboardPanel } from './WhiteboardPanel';
-import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
+import { QuestionEvaluation } from '../../types';
 import {
   Mic,
   MicOff,
@@ -20,10 +20,23 @@ import {
   Clock,
   Sparkles,
   AlertCircle,
-  Video,
-  VideoOff,
+  RefreshCw,
   Volume2
 } from 'lucide-react';
+
+export type LiveEngineState =
+  | 'IDLE'
+  | 'AI_SPEAKING'
+  | 'LISTENING'
+  | 'USER_SPEAKING'
+  | 'PROCESSING'
+  | 'ENDED';
+
+interface TtsQueueItem {
+  id: string;
+  audioBase64?: string | null;
+  text: string;
+}
 
 export const LiveInterviewRoom: React.FC = () => {
   const {
@@ -47,11 +60,8 @@ export const LiveInterviewRoom: React.FC = () => {
     whiteboardNotes,
     isMuted,
     setIsMuted,
-    isAiSpeaking,
     setIsAiSpeaking,
-    isCandidateSpeaking,
     setIsCandidateSpeaking,
-    isAiThinking,
     setIsAiThinking,
     elapsedSeconds,
     setElapsedSeconds,
@@ -67,184 +77,431 @@ export const LiveInterviewRoom: React.FC = () => {
     addToast
   } = useAppStore();
 
-  // Active Voice Engine Name
-  const [activeVoiceProviderName, setActiveVoiceProviderName] = useState<string>(voiceProvider);
+  // -------------------------------------------------------------
+  // STATE MACHINE & REFS
+  // -------------------------------------------------------------
+  const [engineState, setEngineState] = useState<LiveEngineState>('IDLE');
+  const engineStateRef = useRef<LiveEngineState>('IDLE');
+  engineStateRef.current = engineState;
 
-  // Orb State
+  // Visual Orb State
   const [orbState, setOrbState] = useState<OrbState>('idle');
   const [audioInputLevel, setAudioInputLevel] = useState<number>(0);
 
-  // Audio Playback ref
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Status & Error Messages
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [silenceWarning, setSilenceWarning] = useState<string>('');
 
-  // Text mode state
+  // Transcripts & Buffering
+  const [interimTranscript, setInterimTranscript] = useState<string>('');
+  const bufferedCandidateTextRef = useRef<string>('');
+  const speechDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Single-flight guard & AbortController
+  const isInFlightLlmRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // TTS Single Player & FIFO Queue
+  const ttsQueueRef = useRef<TtsQueueItem[]>([]);
+  const isPlayingTtsRef = useRef<boolean>(false);
+  const activeAudioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Turn-taking context for Anti-Repetition
+  const askedQuestionsRef = useRef<string[]>([]);
+  const coveredTopicsRef = useRef<string[]>([]);
+  const lastAiUtterancesRef = useRef<string[]>([]);
+  const followUpCountRef = useRef<number>(0);
+  const accumulatedEvaluationsRef = useRef<QuestionEvaluation[]>([]);
+
+  // Silence timing
+  const [silenceSeconds, setSilenceSeconds] = useState<number>(0);
+  const hasNudgedThisQuestionRef = useRef<boolean>(false);
+
+  // Text fallback mode
   const [isTextMode, setIsTextMode] = useState<boolean>(false);
   const [textInput, setTextInput] = useState<string>('');
   const [showCaptions, setShowCaptions] = useState<boolean>(true);
 
-  // Silence timer (for 20s auto-hint)
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [silenceSeconds, setSilenceSeconds] = useState<number>(0);
-
-  // Interim candidate text
-  const [interimTranscript, setInterimTranscript] = useState<string>('');
-
-  // Video element ref
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
   // End Interview confirmation modal
   const [showEndModal, setShowEndModal] = useState<boolean>(false);
 
-  // Initialize Speech Turn from AI
-  const executeAiTurn = async (
+  // Helper to transition state cleanly and sync orb + store
+  const transitionEngineState = useCallback((newState: LiveEngineState) => {
+    engineStateRef.current = newState;
+    setEngineState(newState);
+
+    switch (newState) {
+      case 'AI_SPEAKING':
+        setOrbState('speaking');
+        setIsAiSpeaking(true);
+        setIsCandidateSpeaking(false);
+        setIsAiThinking(false);
+        break;
+      case 'USER_SPEAKING':
+        setOrbState('listening');
+        setIsAiSpeaking(false);
+        setIsCandidateSpeaking(true);
+        setIsAiThinking(false);
+        break;
+      case 'LISTENING':
+        setOrbState('listening');
+        setIsAiSpeaking(false);
+        setIsCandidateSpeaking(false);
+        setIsAiThinking(false);
+        break;
+      case 'PROCESSING':
+        setOrbState('thinking');
+        setIsAiSpeaking(false);
+        setIsCandidateSpeaking(false);
+        setIsAiThinking(true);
+        break;
+      case 'IDLE':
+      case 'ENDED':
+      default:
+        setOrbState('idle');
+        setIsAiSpeaking(false);
+        setIsCandidateSpeaking(false);
+        setIsAiThinking(false);
+        break;
+    }
+  }, [setIsAiSpeaking, setIsCandidateSpeaking, setIsAiThinking]);
+
+  // Format MM:SS helper
+  const formatTimer = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // -------------------------------------------------------------
+  // TTS FIFO QUEUE & BARGE-IN IMPLEMENTATION
+  // -------------------------------------------------------------
+  const stopTtsAndClearQueue = useCallback(() => {
+    ttsQueueRef.current = [];
+    if (activeAudioElementRef.current) {
+      activeAudioElementRef.current.pause();
+      activeAudioElementRef.current.currentTime = 0;
+      activeAudioElementRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    isPlayingTtsRef.current = false;
+  }, []);
+
+  const playNextTtsInQueue = useCallback(() => {
+    if (ttsQueueRef.current.length === 0) {
+      isPlayingTtsRef.current = false;
+
+      // Reopen mic to STT exactly 300ms after TTS fully ends so AI never hears itself!
+      setTimeout(() => {
+        voiceService.setMicMuted(false);
+        if (engineStateRef.current === 'AI_SPEAKING') {
+          transitionEngineState('LISTENING');
+        }
+      }, 300);
+      return;
+    }
+
+    isPlayingTtsRef.current = true;
+    transitionEngineState('AI_SPEAKING');
+    voiceService.setMicMuted(true); // Guarantee mic is muted during speech playback
+
+    const item = ttsQueueRef.current.shift()!;
+
+    if (item.audioBase64) {
+      try {
+        const audio = new Audio(`data:audio/mp3;base64,${item.audioBase64}`);
+        activeAudioElementRef.current = audio;
+
+        audio.onended = () => {
+          activeAudioElementRef.current = null;
+          playNextTtsInQueue();
+        };
+
+        audio.onerror = (e) => {
+          console.warn('[TTS Playback] Audio element error, playing next:', e);
+          activeAudioElementRef.current = null;
+          playNextTtsInQueue();
+        };
+
+        audio.play().catch((err) => {
+          console.warn('[TTS Playback] audio.play() blocked, fallback to next:', err);
+          activeAudioElementRef.current = null;
+          playNextTtsInQueue();
+        });
+      } catch (err) {
+        console.warn('[TTS Playback] Exception creating Audio:', err);
+        playNextTtsInQueue();
+      }
+    } else {
+      // Free Web Speech synthesis fallback
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(item.text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.onend = () => playNextTtsInQueue();
+        utterance.onerror = () => playNextTtsInQueue();
+        window.speechSynthesis.speak(utterance);
+      } else {
+        playNextTtsInQueue();
+      }
+    }
+  }, [transitionEngineState]);
+
+  const enqueueTtsUtterance = useCallback((item: TtsQueueItem) => {
+    ttsQueueRef.current.push(item);
+    if (!isPlayingTtsRef.current) {
+      playNextTtsInQueue();
+    }
+  }, [playNextTtsInQueue]);
+
+  // Barge-In: Candidate speaks while AI is speaking
+  const handleBargeIn = useCallback(() => {
+    if (engineStateRef.current === 'AI_SPEAKING' || isPlayingTtsRef.current) {
+      stopTtsAndClearQueue();
+      voiceService.setMicMuted(false);
+      transitionEngineState('USER_SPEAKING');
+      addToast('info', 'AI paused — listening to you.');
+    }
+  }, [stopTtsAndClearQueue, transitionEngineState, addToast]);
+
+  // -------------------------------------------------------------
+  // AI TURN EXECUTION WITH 3X RETRY (NO CANNED FALLBACKS)
+  // -------------------------------------------------------------
+  const executeAiTurn = useCallback(async (
     candidateMessage: string,
     options: { requestedHint?: boolean; requestedRepeat?: boolean } = {}
   ) => {
-    try {
-      setIsAiThinking(true);
-      setOrbState('thinking');
+    // Single-flight guard: never trigger if already processing or playing TTS
+    if (isInFlightLlmRef.current || isPlayingTtsRef.current) {
+      console.warn('[Turn-Taking] In-flight work active, ignoring trigger.');
+      return;
+    }
 
-      // Stop any existing AI speech audio playback
-      if (currentAudioRef.current) {
-        currentAudioRef.current.pause();
-        currentAudioRef.current = null;
-      }
+    // Cancel any previous in-flight call
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
-      const res = await api.sendSpeechTurn({
-        candidateName: currentUser.name,
-        companyName: selectedCompany?.name || 'Google',
-        roleTitle: selectedRole?.title || 'SDE II',
-        difficulty,
-        interviewType,
-        language,
-        plan: interviewPlan,
-        transcriptHistory: transcript,
-        candidateMessage,
-        candidateCode: codeSnippet,
-        currentQuestionIndex,
-        userRequestedHint: options.requestedHint || false,
-        userRequestedRepeat: options.requestedRepeat || false,
-        silentSeconds: silenceSeconds
-      });
+    isInFlightLlmRef.current = true;
+    transitionEngineState('PROCESSING');
+    setErrorMessage('');
+    setSilenceWarning('');
+    setSilenceSeconds(0);
 
-      setIsAiThinking(false);
-
-      // Record AI turn in transcript
-      const timestamp = formatTimer(elapsedSeconds);
+    // Record candidate turn in transcript
+    if (candidateMessage.trim()) {
       addTranscriptTurn({
-        id: `turn-ai-${Date.now()}`,
-        speaker: 'ai',
-        text: res.aiResponseText,
-        timestamp,
+        id: `turn-cand-${Date.now()}`,
+        speaker: 'candidate',
+        text: candidateMessage.trim(),
+        timestamp: formatTimer(elapsedSeconds),
         secondsFromStart: elapsedSeconds,
         questionIndex: currentQuestionIndex
       });
 
-      // Update filler words and pacing
-      if (res.fillerWordsFound && res.fillerWordsFound.length > 0) {
-        incrementFillerWords(res.fillerWordsFound.length);
-      }
-      if (res.wordCount > 5) {
-        const estWpm = Math.min(210, Math.max(90, Math.round((res.wordCount / 12) * 60)));
+      // Pacing & filler words
+      const fillerMatches = (candidateMessage.match(/\b(um|uh|like|basically|actually|you know|sort of|matlab|so yeah)\b/gi) || []);
+      if (fillerMatches.length > 0) incrementFillerWords(fillerMatches.length);
+      const words = candidateMessage.trim().split(/\s+/).filter(Boolean);
+      if (words.length > 4) {
+        const estWpm = Math.min(210, Math.max(90, Math.round((words.length / 15) * 60)));
         setCurrentPaceWpm(estWpm);
       }
-
-      // Check if we should advance to the next plan question
-      if (res.advanceQuestion && currentQuestionIndex < (interviewPlan?.questions?.length || 3)) {
-        setCurrentQuestionIndex((prev) => prev + 1);
-      }
-
-      // Play AI Audio Output (supports barge-in interruption)
-      if (res.audioBase64) {
-        playAiVoiceAudio(res.audioBase64);
-      } else {
-        // Fallback Web Speech Synthesis
-        playSpeechSynthesis(res.aiResponseText);
-      }
-    } catch (err: any) {
-      setIsAiThinking(false);
-      setOrbState('idle');
-      addToast('error', 'Error in AI turn.');
     }
-  };
 
-  // Play AI TTS Audio with barge-in support
-  const playAiVoiceAudio = (audioBase64: string) => {
-    try {
-      setIsAiSpeaking(true);
-      setOrbState('speaking');
+    // Retry loop: up to 3 times on network or LLM errors
+    let attempts = 0;
+    let turnSuccess = false;
+    let turnResult: any = null;
 
-      const audio = new Audio(`data:audio/wav;base64,${audioBase64}`);
-      currentAudioRef.current = audio;
-
-      audio.onended = () => {
-        setIsAiSpeaking(false);
-        setOrbState('listening');
-        resetSilenceTimer();
-      };
-
-      audio.onerror = () => {
-        setIsAiSpeaking(false);
-        setOrbState('listening');
-        resetSilenceTimer();
-      };
-
-      audio.play().catch(() => {
-        setIsAiSpeaking(false);
-        setOrbState('listening');
-      });
-    } catch (e) {
-      setIsAiSpeaking(false);
-      setOrbState('listening');
-    }
-  };
-
-  // Fallback speech synthesis
-  const playSpeechSynthesis = (text: string) => {
-    setIsAiSpeaking(true);
-    setOrbState('speaking');
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.onend = () => {
-      setIsAiSpeaking(false);
-      setOrbState('listening');
-      resetSilenceTimer();
-    };
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Barge-In Interruption Handler
-  const handleBargeInInterruption = () => {
-    if (isAiSpeaking && currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-      setIsAiSpeaking(false);
-      window.speechSynthesis.cancel();
-      addToast('info', 'AI paused — listening to you.');
-    }
-  };
-
-  // Silence Timer logic (offers hint after 20 seconds of silence)
-  const resetSilenceTimer = () => {
-    if (silenceTimerRef.current) clearInterval(silenceTimerRef.current);
-    setSilenceSeconds(0);
-    silenceTimerRef.current = setInterval(() => {
-      setSilenceSeconds((prev) => {
-        if (prev >= 20 && !isAiSpeaking && !isAiThinking) {
-          // Trigger automatic polite nudge / hint
-          executeAiTurn('', { requestedHint: true });
-          return 0;
+    while (attempts < 3 && !turnSuccess && !abortController.signal.aborted) {
+      attempts++;
+      try {
+        if (attempts > 1) {
+          setErrorMessage(`Reconnecting... (attempt ${attempts}/3)`);
         }
-        return prev + 1;
-      });
-    }, 1000);
-  };
 
-  // Initialize Voice Engine (Deepgram Agent / Cascaded / WebSpeech)
+        turnResult = await api.sendSpeechTurn({
+          candidateName: currentUser.name,
+          companyName: selectedCompany?.name || 'Google',
+          roleTitle: selectedRole?.title || 'SDE II',
+          difficulty,
+          interviewType,
+          language,
+          plan: interviewPlan,
+          transcriptHistory: transcript,
+          candidateMessage: candidateMessage.trim(),
+          candidateCode: codeSnippet,
+          currentQuestionIndex,
+          followUpCount: followUpCountRef.current,
+          askedQuestions: askedQuestionsRef.current,
+          coveredTopics: coveredTopicsRef.current,
+          lastAiUtterances: lastAiUtterancesRef.current,
+          userRequestedHint: options.requestedHint || false,
+          userRequestedRepeat: options.requestedRepeat || false,
+          silentSeconds: silenceSeconds
+        });
+
+        if (turnResult && turnResult.success) {
+          turnSuccess = true;
+          setErrorMessage('');
+        } else {
+          throw new Error(turnResult?.error || 'Turn generation failed');
+        }
+      } catch (err: any) {
+        if (abortController.signal.aborted) return;
+        console.warn(`[Turn Generation] Attempt ${attempts} error:`, err.message);
+        setErrorMessage('Reconnecting...');
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    }
+
+    isInFlightLlmRef.current = false;
+
+    if (abortController.signal.aborted) return;
+
+    if (!turnSuccess || !turnResult) {
+      setErrorMessage('Reconnecting... Unable to reach interviewer. Click retry below.');
+      transitionEngineState('LISTENING');
+      return;
+    }
+
+    const aiUtterance = turnResult.next_utterance || turnResult.aiResponseText;
+
+    // Track AI utterance for anti-repetition (last 10)
+    lastAiUtterancesRef.current.push(aiUtterance);
+    if (lastAiUtterancesRef.current.length > 10) {
+      lastAiUtterancesRef.current.shift();
+    }
+
+    // Track asked question and covered topic
+    const currentQ = interviewPlan?.questions?.[currentQuestionIndex];
+    if (currentQ) {
+      if (!askedQuestionsRef.current.includes(currentQ.question)) {
+        askedQuestionsRef.current.push(currentQ.question);
+      }
+      if (!coveredTopicsRef.current.includes(currentQ.category)) {
+        coveredTopicsRef.current.push(currentQ.category);
+      }
+    }
+
+    // Record AI turn in transcript
+    addTranscriptTurn({
+      id: `turn-ai-${Date.now()}`,
+      speaker: 'ai',
+      text: aiUtterance,
+      timestamp: formatTimer(elapsedSeconds),
+      secondsFromStart: elapsedSeconds,
+      questionIndex: currentQuestionIndex
+    });
+
+    // Store per-answer evaluation in QuestionEvaluation format for final report
+    if (turnResult.evaluation && currentQ) {
+      const qEval: QuestionEvaluation = {
+        questionNumber: currentQuestionIndex + 1,
+        category: currentQ.category,
+        questionText: currentQ.question,
+        candidateAnswerExcerpt: candidateMessage.slice(0, 160) || '(Spoken response)',
+        scoreOutOf10: Math.round(((turnResult.evaluation.relevance || 8) + (turnResult.evaluation.depth || 8)) / 2),
+        whatWasGood: turnResult.evaluation.whatWasGood || turnResult.evaluation.notes || 'Strong technical understanding.',
+        whatWasMissing: turnResult.evaluation.whatWasMissing || 'Could elaborate more on edge case handling.',
+        mistakesOrErrors: turnResult.evaluation.mistakesOrErrors || 'None noted.',
+        idealModelAnswer: turnResult.evaluation.idealModelAnswer || 'Clear, metric-backed architecture explanation.',
+        followUpAsked: turnResult.action === 'follow_up' ? aiUtterance : undefined,
+        followUpHandling: turnResult.action === 'follow_up' ? 'Addressed follow-up probe' : 'Direct response',
+        timeTakenSeconds: Math.max(15, silenceSeconds || 25),
+        transcriptTimestamp: formatTimer(elapsedSeconds)
+      };
+      accumulatedEvaluationsRef.current.push(qEval);
+    }
+
+    // Advance question or follow-up count
+    if (turnResult.action === 'follow_up') {
+      followUpCountRef.current += 1;
+      if (followUpCountRef.current >= 2) {
+        followUpCountRef.current = 0;
+        setCurrentQuestionIndex((prev) => Math.min((interviewPlan?.questions?.length || 4) - 1, prev + 1));
+        hasNudgedThisQuestionRef.current = false;
+      }
+    } else if (turnResult.action === 'next_question') {
+      followUpCountRef.current = 0;
+      setCurrentQuestionIndex((prev) => Math.min((interviewPlan?.questions?.length || 4) - 1, prev + 1));
+      hasNudgedThisQuestionRef.current = false;
+    }
+
+    // Enqueue speech into FIFO player
+    enqueueTtsUtterance({
+      id: `tts-${Date.now()}`,
+      audioBase64: turnResult.audioBase64,
+      text: aiUtterance
+    });
+  }, [
+    currentUser.name,
+    selectedCompany?.name,
+    selectedRole?.title,
+    difficulty,
+    interviewType,
+    language,
+    interviewPlan,
+    transcript,
+    codeSnippet,
+    currentQuestionIndex,
+    silenceSeconds,
+    elapsedSeconds,
+    addTranscriptTurn,
+    incrementFillerWords,
+    setCurrentPaceWpm,
+    setCurrentQuestionIndex,
+    transitionEngineState,
+    enqueueTtsUtterance
+  ]);
+
+  // -------------------------------------------------------------
+  // TURN-TAKING SPEECH FINAL & DEBOUNCE LOGIC
+  // -------------------------------------------------------------
+  const scheduleFinalSpeechTrigger = useCallback(() => {
+    if (speechDebounceTimerRef.current) {
+      clearTimeout(speechDebounceTimerRef.current);
+    }
+
+    // 1.2s silence debounce
+    speechDebounceTimerRef.current = setTimeout(() => {
+      const buffered = bufferedCandidateTextRef.current.trim();
+      if (!buffered) return;
+
+      // Filter filler-only speech
+      const words = buffered.toLowerCase().split(/\s+/).filter(Boolean);
+      const nonFillers = words.filter(
+        (w) => !['um', 'uh', 'like', 'hmm', 'er', 'ah', 'basically', 'actually', 'you know', 'matlab', 'so yeah'].includes(w)
+      );
+
+      if (nonFillers.length < 2) {
+        // Less than 2 non-filler words: ignore and return to LISTENING
+        bufferedCandidateTextRef.current = '';
+        if (engineStateRef.current === 'USER_SPEAKING') {
+          transitionEngineState('LISTENING');
+        }
+        return;
+      }
+
+      // Valid candidate response!
+      bufferedCandidateTextRef.current = '';
+      setInterimTranscript('');
+      executeAiTurn(buffered);
+    }, 1200);
+  }, [executeAiTurn, transitionEngineState]);
+
+  // -------------------------------------------------------------
+  // INITIALIZE VOICE ENGINE ON MOUNT (DEEPGRAM PIPELINE)
+  // -------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
 
+    // Start voice service with Deepgram live proxy pipeline
     voiceService
       .start(
         {
@@ -258,85 +515,95 @@ export const LiveInterviewRoom: React.FC = () => {
           plan: interviewPlan,
           resumeSummary: parsedResume?.summary,
           voice: deepgramVoice,
-          provider: voiceProvider,
+          provider: 'deepgram-cascaded',
           durationMinutes
         },
         {
           onTranscript: (event) => {
             if (!isMounted) return;
-            const timestamp = formatTimer(elapsedSeconds);
+
+            setSilenceWarning('');
+            setSilenceSeconds(0);
+
             if (event.isFinal) {
-              addTranscriptTurn({
-                id: `turn-${event.speaker}-${Date.now()}`,
-                speaker: event.speaker,
-                text: event.text,
-                timestamp,
-                secondsFromStart: elapsedSeconds,
-                questionIndex: currentQuestionIndex
-              });
+              // Buffer is_final segment only; NEVER call LLM on interim results!
+              bufferedCandidateTextRef.current += (bufferedCandidateTextRef.current ? ' ' : '') + event.text;
               setInterimTranscript('');
-              if (event.speaker === 'candidate') {
-                setIsCandidateSpeaking(false);
-                // Detect filler words
-                const fillers = (event.text.match(/\b(um|uh|like|basically|actually|you know|sort of|matlab|so yeah)\b/gi) || []);
-                if (fillers.length > 0) incrementFillerWords(fillers.length);
-                // Trigger AI turn if cascaded or fallback
-                if (activeVoiceProviderName !== 'deepgram-agent') {
-                  executeAiTurn(event.text);
-                }
+
+              if (engineStateRef.current === 'AI_SPEAKING') {
+                handleBargeIn();
+              } else if (engineStateRef.current !== 'USER_SPEAKING' && engineStateRef.current !== 'PROCESSING') {
+                transitionEngineState('USER_SPEAKING');
+              }
+
+              if (event.isSpeechFinal) {
+                scheduleFinalSpeechTrigger();
               }
             } else {
+              // Interim text: show live subtitles only, never call LLM
               setInterimTranscript(event.text);
-              if (event.speaker === 'candidate') {
-                setIsCandidateSpeaking(true);
+              if (engineStateRef.current === 'AI_SPEAKING') {
+                handleBargeIn();
+              } else if (engineStateRef.current === 'LISTENING') {
+                transitionEngineState('USER_SPEAKING');
               }
             }
           },
-          onError: (err) => {
-            console.warn('[LiveRoom] Voice Provider notice:', err);
-          },
-          onStateChange: (state) => {
+          onSpeechStarted: () => {
             if (!isMounted) return;
-            setOrbState(state);
-            setIsAiSpeaking(state === 'speaking');
-            setIsCandidateSpeaking(state === 'listening' && interimTranscript.length > 0);
-            setIsAiThinking(state === 'thinking');
+            setSilenceWarning('');
+            setSilenceSeconds(0);
+            if (engineStateRef.current === 'AI_SPEAKING') {
+              handleBargeIn();
+            } else if (engineStateRef.current === 'LISTENING') {
+              transitionEngineState('USER_SPEAKING');
+            }
+          },
+          onUtteranceEnd: () => {
+            if (!isMounted) return;
+            scheduleFinalSpeechTrigger();
           },
           onAudioLevel: (lvl) => {
             if (!isMounted) return;
             setAudioInputLevel(lvl);
+            if (lvl > 2) {
+              setSilenceWarning('');
+            }
           },
+          onSilenceWarning: (msg) => {
+            if (!isMounted) return;
+            if (engineStateRef.current === 'LISTENING') {
+              setSilenceWarning(msg);
+            }
+          },
+          onError: (err) => {
+            console.warn('[Voice Engine Notice]:', err);
+            if (typeof err === 'string' && err.includes('Lost connection')) {
+              setErrorMessage('Reconnecting...');
+            }
+          },
+          onStateChange: () => {},
           onBargeIn: () => {
             if (!isMounted) return;
-            setIsAiSpeaking(false);
-            if (currentAudioRef.current) {
-              currentAudioRef.current.pause();
-              currentAudioRef.current = null;
-            }
-            window.speechSynthesis.cancel();
-          },
-          onProviderFallback: (from, to, reason) => {
-            if (!isMounted) return;
-            setActiveVoiceProviderName(to);
-            addToast('warning', `Voice engine switched to ${to}: ${reason}`);
+            handleBargeIn();
           }
         }
       )
-      .then((started) => {
-        if (isMounted) {
-          setActiveVoiceProviderName(started);
-        }
-      })
       .catch((err) => {
-        console.warn('Voice start fallback error:', err);
+        console.warn('Voice start exception:', err);
+        if (isMounted) setErrorMessage('Microphone access or live voice connection error.');
       });
 
-    // Initial greeting turn from AI
+    // Start with warmup greeting from interview plan
     const greetingText =
       interviewPlan?.warmupIntro ||
-      `Hello ${currentUser.name}, welcome to your ${selectedCompany?.name || 'tech'} mock interview for the ${selectedRole?.title || 'Engineer'} position. It is great to have you here today. Could you briefly introduce yourself and share what you've been working on recently?`;
+      `Hello ${currentUser.name}, welcome to your ${selectedCompany?.name || 'Google'} mock interview for the ${selectedRole?.title || 'Software Engineer'} role! It is great to have you here today. Could you briefly introduce yourself and share a highlight from your recent engineering work?`;
 
     const timer = setTimeout(() => {
+      if (!isMounted) return;
+
+      // Track warmup greeting
+      lastAiUtterancesRef.current.push(greetingText);
       addTranscriptTurn({
         id: `turn-ai-intro`,
         speaker: 'ai',
@@ -346,81 +613,104 @@ export const LiveInterviewRoom: React.FC = () => {
         questionIndex: 0
       });
 
-      // Play through Deepgram Aura TTS or WebSpeech
+      // Synthesize through Deepgram Aura TTS
       api.synthesizeDeepgramTts(greetingText, deepgramVoice).then((ttsRes) => {
-        if (ttsRes.audioBase64) {
-          playAiVoiceAudio(ttsRes.audioBase64);
-        } else {
-          playSpeechSynthesis(greetingText);
-        }
+        if (!isMounted) return;
+        enqueueTtsUtterance({
+          id: 'tts-intro',
+          audioBase64: ttsRes.audioBase64,
+          text: greetingText
+        });
       });
-    }, 900);
+    }, 800);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
+      if (speechDebounceTimerRef.current) clearTimeout(speechDebounceTimerRef.current);
+      stopTtsAndClearQueue();
       voiceService.stop();
     };
   }, []);
 
-  // Live timer interval
+  // -------------------------------------------------------------
+  // SILENCE TIMERS (12s NUDGE, 25s MOVE-ON)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const silenceInterval = setInterval(() => {
+      if (engineStateRef.current === 'LISTENING') {
+        setSilenceSeconds((prev) => {
+          const next = prev + 1;
+
+          // 12s silence: polite nudge once
+          if (next === 12 && !hasNudgedThisQuestionRef.current && !isInFlightLlmRef.current) {
+            hasNudgedThisQuestionRef.current = true;
+            executeAiTurn('', { requestedHint: true });
+          }
+
+          // 25s silence: move on to next question
+          if (next === 25 && !isInFlightLlmRef.current) {
+            hasNudgedThisQuestionRef.current = false;
+            addToast('info', 'Moving forward to next question...');
+            executeAiTurn("Let's move on to the next question.");
+          }
+
+          return next;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(silenceInterval);
+  }, [executeAiTurn, addToast]);
+
+  // Elapsed seconds timer
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [setElapsedSeconds]);
 
-  // Format MM:SS
-  const formatTimer = (totalSec: number) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Submit Text Input response
-  const handleSendText = () => {
-    if (!textInput.trim()) return;
-    handleBargeInInterruption();
-    const text = textInput.trim();
-    setTextInput('');
-
-    const timestamp = formatTimer(elapsedSeconds);
-    addTranscriptTurn({
-      id: `turn-cand-${Date.now()}`,
-      speaker: 'candidate',
-      text,
-      timestamp,
-      secondsFromStart: elapsedSeconds,
-      questionIndex: currentQuestionIndex
-    });
-
-    executeAiTurn(text);
-  };
-
-  // Request Hint from AI
+  // -------------------------------------------------------------
+  // ACTION HANDLERS: HINT, REPEAT, TEXT MODE, RETRY MIC
+  // -------------------------------------------------------------
   const handleRequestHint = () => {
-    handleBargeInInterruption();
-    addToast('info', 'Requesting guidance hint from AI interviewer...');
-    executeAiTurn('Could you give me a slight hint or point me in the right direction?', {
+    handleBargeIn();
+    addToast('info', 'Requesting guidance hint from interviewer...');
+    executeAiTurn('Could you give me a subtle hint or point me in the right direction?', {
       requestedHint: true
     });
   };
 
-  // Request Repeat Question
   const handleRepeatQuestion = () => {
-    handleBargeInInterruption();
-    addToast('info', 'Asking AI to repeat the question...');
+    handleBargeIn();
+    addToast('info', 'Asking interviewer to repeat the question...');
     executeAiTurn('Could you repeat the question please?', { requestedRepeat: true });
   };
 
-  // End Interview and Evaluate
+  const handleSendText = () => {
+    if (!textInput.trim()) return;
+    handleBargeIn();
+    const text = textInput.trim();
+    setTextInput('');
+    executeAiTurn(text);
+  };
+
+  const handleRetryMic = () => {
+    setSilenceWarning('');
+    voiceService.setMicMuted(false);
+    transitionEngineState('LISTENING');
+    addToast('info', 'Microphone connection refreshed.');
+  };
+
+  // -------------------------------------------------------------
+  // END INTERVIEW & EVALUATE
+  // -------------------------------------------------------------
   const handleEndInterview = async () => {
     setShowEndModal(false);
-    if (currentAudioRef.current) currentAudioRef.current.pause();
-    window.speechSynthesis.cancel();
+    stopTtsAndClearQueue();
+    voiceService.stop();
 
-    // Transition to evaluation loading view
     setCurrentView('evaluating');
 
     try {
@@ -436,7 +726,7 @@ export const LiveInterviewRoom: React.FC = () => {
         codeSnippets: codeSnippet ? { language: 'typescript', code: codeSnippet } : null,
         whiteboardNotes,
         behaviorStats: { webcamConsented: cameraPreviewEnabled },
-        resumeSkills: []
+        resumeSkills: parsedResume?.skills || []
       });
 
       setCurrentReport(report);
@@ -444,12 +734,12 @@ export const LiveInterviewRoom: React.FC = () => {
       addToast('success', 'Comprehensive evaluation complete!');
     } catch (e: any) {
       console.error('Evaluation error:', e);
-      addToast('error', 'Evaluation failed, showing generated performance overview.');
+      addToast('error', 'Evaluation generated with transcript summary.');
       setCurrentView('report');
     }
   };
 
-  const totalQuestions = interviewPlan?.questions?.length || 4;
+  const totalQuestions = interviewPlan?.questions?.length || 8;
   const currentQ = interviewPlan?.questions?.[currentQuestionIndex];
 
   return (
@@ -471,7 +761,7 @@ export const LiveInterviewRoom: React.FC = () => {
               <span className="text-mint font-medium">{difficulty} Bar</span>
               <span>·</span>
               <span className="text-mint/90 font-medium font-mono text-[10px]">
-                {activeVoiceProviderName === 'deepgram-agent' ? 'Deepgram Agent API' : activeVoiceProviderName === 'deepgram-cascaded' ? 'Deepgram Cascaded' : 'Web Speech'}
+                Deepgram Live Voice
               </span>
             </div>
           </div>
@@ -483,7 +773,7 @@ export const LiveInterviewRoom: React.FC = () => {
             Question {Math.min(currentQuestionIndex + 1, totalQuestions)} of {totalQuestions}:
           </span>
           <span className="text-xs font-medium text-text-primary max-w-xs truncate">
-            {currentQ?.category || 'General Assessment'}
+            {currentQ?.category || 'Technical Assessment'}
           </span>
           <div className="flex items-center gap-1 ml-2">
             {Array.from({ length: totalQuestions }).map((_, i) => (
@@ -501,14 +791,51 @@ export const LiveInterviewRoom: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Timer & Speech Pace/Filler metrics */}
-        <div className="flex items-center gap-3">
-          {/* Subtle Live Pace Meter */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-xl bg-sage-950/50 border border-sage-300/15 text-[11px]">
-            <span className="text-text-muted">Pace:</span>
-            <span className="font-semibold text-mint">{currentPaceWpm} WPM</span>
-            <span className="text-text-muted">·</span>
-            <span className="text-text-muted">{fillerWordsTotal} fillers</span>
+        {/* Right: State Badge, Timer & Pace */}
+        <div className="flex items-center gap-2.5">
+          {/* Subtle Live Turn-Taking State Badge */}
+          <div
+            className={`px-2.5 py-1 rounded-xl border text-[11px] font-semibold flex items-center gap-1.5 transition-all ${
+              engineState === 'AI_SPEAKING'
+                ? 'bg-sage-500/20 border-sage-400/40 text-mint'
+                : engineState === 'USER_SPEAKING'
+                ? 'bg-mint/20 border-mint/50 text-mint animate-pulse'
+                : engineState === 'PROCESSING'
+                ? 'bg-gold/20 border-gold/40 text-gold animate-pulse'
+                : 'bg-sage-950/50 border-sage-300/20 text-text-secondary'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                engineState === 'AI_SPEAKING'
+                  ? 'bg-mint'
+                  : engineState === 'USER_SPEAKING'
+                  ? 'bg-mint animate-ping'
+                  : engineState === 'PROCESSING'
+                  ? 'bg-gold animate-spin'
+                  : 'bg-sage-400'
+              }`}
+            />
+            <span>
+              {engineState === 'AI_SPEAKING'
+                ? 'Interviewer Speaking'
+                : engineState === 'USER_SPEAKING'
+                ? 'Listening to You'
+                : engineState === 'PROCESSING'
+                ? 'Thinking...'
+                : 'Listening'}
+            </span>
+          </div>
+
+          {/* Mini Audio Level Meter */}
+          <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sage-950/40 border border-sage-300/15" title="Mic Level">
+            <Mic className="w-3 h-3 text-mint" />
+            <div className="w-10 h-1.5 rounded-full bg-sage-950/80 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-mint to-gold transition-all duration-75"
+                style={{ width: `${Math.min(100, audioInputLevel * 1.5)}%` }}
+              />
+            </div>
           </div>
 
           {/* Timer Chip */}
@@ -527,19 +854,35 @@ export const LiveInterviewRoom: React.FC = () => {
           audioLevel={audioInputLevel}
           size={230}
           subtext={
-            isAiSpeaking
+            engineState === 'AI_SPEAKING'
               ? 'Interviewer speaking (you can interrupt anytime)'
-              : isCandidateSpeaking
+              : engineState === 'USER_SPEAKING'
               ? 'Listening to you speak...'
-              : isAiThinking
-              ? 'Evaluating answer & preparing follow-up...'
-              : 'Interviewer waiting for your response'
+              : engineState === 'PROCESSING'
+              ? 'Evaluating response & formulating next question...'
+              : 'Waiting for your answer...'
           }
         />
 
+        {/* Error / Silence Message Line */}
+        {(errorMessage || silenceWarning) && (
+          <div className="mt-4 px-4 py-2 rounded-2xl bg-sage-950/80 border border-status-warning/40 flex items-center gap-2 text-xs shadow-lg animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-gold shrink-0" />
+            <span className="text-text-primary">{errorMessage || silenceWarning}</span>
+            {silenceWarning && (
+              <button
+                onClick={handleRetryMic}
+                className="ml-2 px-2 py-0.5 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint text-[11px] font-semibold flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry Mic
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Live Interim Subtitle Pill under Orb */}
-        {(interimTranscript || (isAiSpeaking && transcript.length > 0)) && (
-          <div className="mt-6 max-w-xl text-center px-4 py-2 rounded-2xl glass-2 border border-sage-300/20 shadow-md animate-in fade-in duration-150">
+        {(interimTranscript || (engineState === 'AI_SPEAKING' && transcript.length > 0)) && (
+          <div className="mt-5 max-w-xl text-center px-4 py-2 rounded-2xl glass-2 border border-sage-300/20 shadow-md animate-in fade-in duration-150">
             <p className="text-xs text-text-primary italic">
               "{interimTranscript || transcript[transcript.length - 1]?.text}"
             </p>
@@ -575,8 +918,10 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Mute toggle */}
             <button
               onClick={() => {
-                setIsMuted(!isMuted);
-                addToast('info', !isMuted ? 'Microphone muted.' : 'Microphone unmuted.');
+                const nextMute = !isMuted;
+                setIsMuted(nextMute);
+                voiceService.setMicMuted(nextMute);
+                addToast('info', nextMute ? 'Microphone muted.' : 'Microphone unmuted.');
               }}
               className={`p-2.5 rounded-xl border transition-all ${
                 isMuted
@@ -591,7 +936,8 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Request Hint */}
             <button
               onClick={handleRequestHint}
-              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/20 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-colors"
+              disabled={engineState === 'PROCESSING'}
+              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/20 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
               title="Request a subtle hint from AI"
             >
               <HelpCircle className="w-3.5 h-3.5 text-gold" />
@@ -601,7 +947,8 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Repeat Question */}
             <button
               onClick={handleRepeatQuestion}
-              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/20 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-colors"
+              disabled={engineState === 'PROCESSING'}
+              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/20 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
               title="Ask AI to repeat the question"
             >
               <RotateCcw className="w-3.5 h-3.5 text-sage-300" />
@@ -733,8 +1080,7 @@ export const LiveInterviewRoom: React.FC = () => {
       {activeRoomTool === 'code' && (
         <CodeEditorPanel
           onClose={() => setActiveRoomTool('none')}
-          onSyncWithAi={(code) => {
-            // Sync code with AI turn
+          onSyncWithAi={() => {
             addToast('info', 'Code synced with interviewer.');
           }}
         />

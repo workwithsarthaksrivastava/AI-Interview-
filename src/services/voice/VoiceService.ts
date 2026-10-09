@@ -63,6 +63,12 @@ class VoiceServiceWrapper {
       this.manager.interrupt();
     }
   }
+
+  setMicMuted(muted: boolean): void {
+    if (this.manager) {
+      this.manager.setMicMuted(muted);
+    }
+  }
 }
 
 export const voiceService = new VoiceServiceWrapper();

@@ -10,204 +10,320 @@ export class DeepgramCascadedProvider implements VoiceProvider {
   private events: VoiceProviderEvents | null = null;
   private config: VoiceSessionConfig | null = null;
   private isRunning = false;
+  private isMicMuted = false;
   private audioCtx: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
-  private processor: ScriptProcessorNode | null = null;
-  private currentAudioElement: HTMLAudioElement | null = null;
+  private workletNode: AudioWorkletNode | null = null;
+  private scriptProcessorNode: ScriptProcessorNode | null = null;
+  private keepAliveTimer: NodeJS.Timeout | null = null;
+  private silenceCheckTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private lastAudioDetectedTime = Date.now();
+  private hasReportedSilence = false;
 
   async start(config: VoiceSessionConfig, events: VoiceProviderEvents): Promise<void> {
     this.config = config;
     this.events = events;
     this.isRunning = true;
-
-    // Fetch scoped token
-    let tokenRes: any = null;
-    try {
-      const res = await fetch('/api/deepgram/token', { method: 'POST' });
-      tokenRes = await res.json();
-    } catch (e: any) {
-      console.warn('Cascaded Deepgram token fetch error:', e);
-      events.onProviderFallback?.('deepgram-cascaded', 'web-speech', 'Failed to get Deepgram token');
-      return;
-    }
-
-    if (!tokenRes?.hasKey || !tokenRes?.token) {
-      events.onProviderFallback?.(
-        'deepgram-cascaded',
-        'web-speech',
-        tokenRes?.message || 'Deepgram API key not available'
-      );
-      return;
-    }
-
-    // Connect to Deepgram Nova-3 Live Transcription
-    const lang = config.sttLanguage === 'hi' ? 'hi' : 'en';
-    const novaUrl = `wss://api.deepgram.com/v1/listen?model=nova-3&language=${lang}&smart_format=true&filler_words=true&interim_results=true`;
+    this.isMicMuted = false;
+    this.reconnectAttempts = 0;
+    this.lastAudioDetectedTime = Date.now();
+    this.hasReportedSilence = false;
 
     try {
-      this.ws = new WebSocket(novaUrl, ['token', tokenRes.token]);
+      // 1. Microphone capture with strict audio processing constraints:
+      // echoCancellation, noiseSuppression, autoGainControl, mono
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1
+        }
+      });
+
+      // 2. AudioContext created/resumed on user click
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      this.audioCtx = new AudioCtxClass();
+      if (this.audioCtx.state === 'suspended') {
+        await this.audioCtx.resume();
+      }
+
+      // 3. Setup WebSocket connection to server Deepgram proxy
+      await this.connectWebSocket();
+
+      // 4. Setup AudioWorklet for PCM capture (fallback to ScriptProcessor)
+      await this.setupAudioCapture();
+
+      // 5. Start KeepAlive and 5-second silence monitoring
+      this.startKeepAlive();
+      this.startSilenceMonitor();
+    } catch (err: any) {
+      console.warn('[Deepgram Voice Provider] Initialization error:', err);
+      events.onError(err.message || 'Microphone or WebSocket initialization error');
+      throw err;
+    }
+  }
+
+  private async connectWebSocket(): Promise<void> {
+    if (!this.isRunning || !this.config) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const lang = this.config.sttLanguage === 'hi' ? 'hi' : 'en';
+
+    // Server-side proxy route: API keys are strictly server-side
+    const wsUrl = `${protocol}//${window.location.host}/api/deepgram/ws?encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${lang}`;
+
+    try {
+      this.ws = new WebSocket(wsUrl);
       this.ws.binaryType = 'arraybuffer';
 
       this.ws.onopen = () => {
+        this.reconnectAttempts = 0;
         this.events?.onStateChange('listening');
       };
 
       this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const alternative = data.channel?.alternatives?.[0];
-          if (!alternative) return;
+        if (typeof event.data === 'string') {
+          try {
+            const data = JSON.parse(event.data);
 
-          const transcriptText = alternative.transcript;
-          if (!transcriptText) return;
+            if (data.type === 'SpeechStarted') {
+              this.events?.onSpeechStarted?.();
+              return;
+            }
 
-          if (data.is_final) {
-            // Barge in on candidate speech
-            this.interrupt();
+            if (data.type === 'UtteranceEnd') {
+              this.events?.onUtteranceEnd?.();
+              return;
+            }
+
+            const alternative = data.channel?.alternatives?.[0];
+            if (!alternative) return;
+
+            const transcriptText = alternative.transcript?.trim();
+            if (!transcriptText) return;
+
+            this.lastAudioDetectedTime = Date.now();
+            this.hasReportedSilence = false;
+
             this.events?.onTranscript({
               speaker: 'candidate',
               text: transcriptText,
-              isFinal: true,
+              isFinal: Boolean(data.is_final),
+              isSpeechFinal: Boolean(data.speech_final),
               confidence: alternative.confidence,
               words: alternative.words
             });
-
-            // Forward text to backend LLM proxy + Aura TTS
-            this.handleCandidateUtterance(transcriptText);
-          } else {
-            this.interrupt();
-            this.events?.onTranscript({
-              speaker: 'candidate',
-              text: transcriptText,
-              isFinal: false
-            });
+          } catch (e) {
+            console.warn('[Deepgram WS] JSON parse error:', e);
           }
-        } catch (e) {
-          console.warn('Nova-3 message parse error:', e);
         }
       };
 
       this.ws.onerror = (e) => {
-        console.warn('Deepgram Nova-3 WebSocket error:', e);
-        this.events?.onProviderFallback?.('deepgram-cascaded', 'web-speech', 'Nova-3 connection failed');
+        console.warn('[Deepgram WS] WebSocket error:', e);
       };
 
-      this.ws.onclose = (e) => {
-        if (e.code === 4002 || e.code === 402 || e.code === 429) {
-          this.events?.onProviderFallback?.('deepgram-cascaded', 'web-speech', 'Credit exhausted');
-        }
+      this.ws.onclose = (event) => {
+        if (!this.isRunning) return;
+        console.warn(`[Deepgram WS] Connection closed (code: ${event.code}). Auto-reconnecting...`);
+        this.scheduleReconnect();
       };
-
-      // Microphone capture
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-      this.audioCtx = new AudioCtxClass({ sampleRate: 16000 });
-
-      const source = this.audioCtx.createMediaStreamSource(this.mediaStream);
-      this.processor = this.audioCtx.createScriptProcessor(4096, 1, 1);
-
-      this.processor.onaudioprocess = (e) => {
-        if (!this.isRunning || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-
-        const inputData = e.inputBuffer.getChannelData(0);
-        let sum = 0;
-        for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
-        const avg = Math.min(100, Math.round((sum / inputData.length) * 400));
-        this.events?.onAudioLevel(avg);
-
-        const pcm16 = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-
-        this.ws.send(pcm16.buffer);
-      };
-
-      source.connect(this.processor);
-      this.processor.connect(this.audioCtx.destination);
-    } catch (err: any) {
-      events.onProviderFallback?.('deepgram-cascaded', 'web-speech', err.message);
-    }
-  }
-
-  private async handleCandidateUtterance(text: string) {
-    if (!this.config) return;
-
-    this.events?.onStateChange('thinking');
-
-    try {
-      const res = await fetch('/api/interview/cascaded-turn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidateName: this.config.candidateName,
-          companyName: this.config.companyName,
-          roleTitle: this.config.roleTitle,
-          difficulty: this.config.difficulty,
-          interviewType: this.config.interviewType,
-          language: this.config.language,
-          candidateMessage: text,
-          plan: this.config.plan
-        })
-      });
-
-      const json = await res.json();
-      if (json.aiResponseText) {
-        this.events?.onTranscript({
-          speaker: 'ai',
-          text: json.aiResponseText,
-          isFinal: true
-        });
-
-        // Playback Deepgram Aura TTS audio
-        if (json.audioBase64) {
-          this.playAudioBase64(json.audioBase64);
-        } else {
-          // Fallback to browser synthesis
-          this.playBrowserTts(json.aiResponseText);
-        }
-      }
     } catch (e: any) {
-      console.warn('Cascaded turn request error:', e);
-      this.events?.onStateChange('listening');
+      console.warn('[Deepgram WS] Connection error:', e);
+      this.scheduleReconnect();
     }
   }
 
-  private playAudioBase64(base64: string) {
-    this.interrupt();
-    this.events?.onStateChange('speaking');
+  private scheduleReconnect() {
+    if (!this.isRunning) return;
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.events?.onError('Lost connection to live voice server. Please check your network and retry.');
+      return;
+    }
 
-    const audio = new Audio(`data:audio/mp3;base64,${base64}`);
-    this.currentAudioElement = audio;
+    this.reconnectAttempts++;
+    const delay = Math.min(6000, 1000 * Math.pow(1.5, this.reconnectAttempts));
+    console.log(`[Deepgram WS] Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-    audio.onended = () => {
-      this.currentAudioElement = null;
-      this.events?.onStateChange('listening');
-    };
-
-    audio.onerror = () => {
-      this.currentAudioElement = null;
-      this.events?.onStateChange('listening');
-    };
-
-    audio.play().catch(() => {
-      this.events?.onStateChange('listening');
-    });
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.connectWebSocket();
+    }, delay);
   }
 
-  private playBrowserTts(text: string) {
-    this.interrupt();
-    this.events?.onStateChange('speaking');
-    const u = new SpeechSynthesisUtterance(text);
-    u.onend = () => this.events?.onStateChange('listening');
-    u.onerror = () => this.events?.onStateChange('listening');
-    window.speechSynthesis.speak(u);
+  private startKeepAlive() {
+    if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+    // Send KeepAlive every 5s as required
+    this.keepAliveTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'KeepAlive' }));
+      }
+    }, 5000);
+  }
+
+  private startSilenceMonitor() {
+    if (this.silenceCheckTimer) clearInterval(this.silenceCheckTimer);
+    this.silenceCheckTimer = setInterval(() => {
+      if (!this.isRunning || this.isMicMuted) return;
+
+      const elapsedWithoutSpeech = Date.now() - this.lastAudioDetectedTime;
+      // If no audio level detected for 5s while listening:
+      if (elapsedWithoutSpeech >= 5000 && !this.hasReportedSilence) {
+        this.hasReportedSilence = true;
+        this.events?.onSilenceWarning?.("I can't hear you, check your mic");
+      }
+    }, 1000);
+  }
+
+  private async setupAudioCapture(): Promise<void> {
+    if (!this.audioCtx || !this.mediaStream) return;
+
+    const source = this.audioCtx.createMediaStreamSource(this.mediaStream);
+
+    // Try AudioWorklet first
+    let audioWorkletSuccess = false;
+    if (typeof AudioWorkletNode !== 'undefined' && this.audioCtx.audioWorklet) {
+      try {
+        const workletCode = `
+          class DeepgramPCMProcessor extends AudioWorkletProcessor {
+            process(inputs) {
+              const input = inputs[0];
+              if (input && input[0]) {
+                this.port.postMessage(input[0]);
+              }
+              return true;
+            }
+          }
+          registerProcessor('deepgram-pcm-processor', DeepgramPCMProcessor);
+        `;
+        const blob = new Blob([workletCode], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        await this.audioCtx.audioWorklet.addModule(blobUrl);
+        URL.revokeObjectURL(blobUrl);
+
+        this.workletNode = new AudioWorkletNode(this.audioCtx, 'deepgram-pcm-processor');
+        this.workletNode.port.onmessage = (e) => {
+          this.processAudioBuffer(e.data);
+        };
+        source.connect(this.workletNode);
+        audioWorkletSuccess = true;
+      } catch (e) {
+        console.warn('[AudioWorklet] Registration failed, falling back to ScriptProcessor:', e);
+      }
+    }
+
+    if (!audioWorkletSuccess) {
+      // Robust ScriptProcessor fallback
+      this.scriptProcessorNode = this.audioCtx.createScriptProcessor(4096, 1, 1);
+      this.scriptProcessorNode.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        this.processAudioBuffer(inputData);
+      };
+      source.connect(this.scriptProcessorNode);
+      this.scriptProcessorNode.connect(this.audioCtx.destination);
+    }
+  }
+
+  private processAudioBuffer(float32Data: Float32Array): void {
+    if (!this.isRunning) return;
+
+    // 1. Calculate audio level (RMS)
+    let sum = 0;
+    for (let i = 0; i < float32Data.length; i++) {
+      sum += float32Data[i] * float32Data[i];
+    }
+    const rms = Math.sqrt(sum / float32Data.length);
+    const level = Math.min(100, Math.round(rms * 400));
+    this.events?.onAudioLevel(level);
+
+    if (level > 2) {
+      this.lastAudioDetectedTime = Date.now();
+      this.hasReportedSilence = false;
+    }
+
+    // 2. Strict Echo-Prevention Guard:
+    // Do not stream mic to STT during AI_SPEAKING (or when mic is muted)
+    if (this.isMicMuted) return;
+
+    // 3. Convert Float32Array to 16-bit linear PCM at 16000 Hz
+    if (!this.audioCtx) return;
+    const pcm16 = this.resampleToInt16(float32Data, this.audioCtx.sampleRate, 16000);
+
+    // 4. Send binary buffer to WebSocket
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(pcm16.buffer as unknown as ArrayBuffer);
+    }
+  }
+
+  private resampleToInt16(audioBuffer: Float32Array, inputRate: number, outputRate = 16000): Int16Array {
+    if (inputRate === outputRate) {
+      const pcm16 = new Int16Array(audioBuffer.length);
+      for (let i = 0; i < audioBuffer.length; i++) {
+        const s = Math.max(-1, Math.min(1, audioBuffer[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return pcm16;
+    }
+
+    // High quality linear resampler to exactly 16000 Hz
+    const ratio = inputRate / outputRate;
+    const outputLength = Math.round(audioBuffer.length / ratio);
+    const pcm16 = new Int16Array(outputLength);
+
+    for (let i = 0; i < outputLength; i++) {
+      const pos = i * ratio;
+      const index = Math.floor(pos);
+      const fraction = pos - index;
+      const s0 = audioBuffer[index] || 0;
+      const s1 = audioBuffer[index + 1] !== undefined ? audioBuffer[index + 1] : s0;
+      const sample = s0 + fraction * (s1 - s0);
+      const clamped = Math.max(-1, Math.min(1, sample));
+      pcm16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+    }
+
+    return pcm16;
+  }
+
+  setMicMuted(muted: boolean): void {
+    this.isMicMuted = muted;
+    if (!muted) {
+      this.lastAudioDetectedTime = Date.now();
+      this.hasReportedSilence = false;
+    }
   }
 
   async stop(): Promise<void> {
     this.isRunning = false;
-    this.interrupt();
+    this.isMicMuted = true;
+
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
+
+    if (this.silenceCheckTimer) {
+      clearInterval(this.silenceCheckTimer);
+      this.silenceCheckTimer = null;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
+    }
+
+    if (this.scriptProcessorNode) {
+      this.scriptProcessorNode.disconnect();
+      this.scriptProcessorNode = null;
+    }
 
     if (this.ws) {
       try {
@@ -216,18 +332,15 @@ export class DeepgramCascadedProvider implements VoiceProvider {
       this.ws = null;
     }
 
-    if (this.processor) {
-      this.processor.disconnect();
-      this.processor = null;
-    }
-
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((t) => t.stop());
       this.mediaStream = null;
     }
 
     if (this.audioCtx && this.audioCtx.state !== 'closed') {
-      this.audioCtx.close();
+      try {
+        await this.audioCtx.close();
+      } catch {}
       this.audioCtx = null;
     }
 
@@ -238,20 +351,12 @@ export class DeepgramCascadedProvider implements VoiceProvider {
     this.events?.onTranscript({
       speaker: 'candidate',
       text,
-      isFinal: true
+      isFinal: true,
+      isSpeechFinal: true
     });
-    this.handleCandidateUtterance(text);
   }
 
   interrupt(): void {
-    if (this.currentAudioElement) {
-      this.currentAudioElement.pause();
-      this.currentAudioElement = null;
-      this.events?.onBargeIn?.();
-    }
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      this.events?.onBargeIn?.();
-    }
+    this.events?.onBargeIn?.();
   }
 }

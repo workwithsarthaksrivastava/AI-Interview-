@@ -366,12 +366,16 @@ export interface VoiceProviderEvents {
     speaker: 'ai' | 'candidate';
     text: string;
     isFinal: boolean;
+    isSpeechFinal?: boolean;
     confidence?: number;
     words?: { word: string; start: number; end: number; confidence: number }[];
   }) => void;
   onError: (error: Error | string, code?: number) => void;
   onStateChange: (state: 'idle' | 'listening' | 'thinking' | 'speaking') => void;
   onAudioLevel: (level: number) => void;
+  onSpeechStarted?: () => void;
+  onUtteranceEnd?: () => void;
+  onSilenceWarning?: (message: string) => void;
   onBargeIn?: () => void;
   onProviderFallback?: (from: VoiceProviderType, to: VoiceProviderType, reason: string) => void;
 }
@@ -387,4 +391,5 @@ export interface VoiceProvider {
     customInstruction?: string;
   }): Promise<void>;
   interrupt(): void;
+  setMicMuted?(muted: boolean): void;
 }

@@ -34,6 +34,7 @@ export const api = {
     language: string;
     durationMinutes: number;
     skills: string[];
+    parsedResume?: any;
   }): Promise<InterviewPlan> {
     const res = await fetch('/api/interview/plan', {
       method: 'POST',
@@ -84,15 +85,26 @@ export const api = {
     candidateMessage: string;
     candidateCode?: string;
     currentQuestionIndex: number;
+    followUpCount?: number;
+    askedQuestions?: string[];
+    coveredTopics?: string[];
+    lastAiUtterances?: string[];
     userRequestedHint?: boolean;
     userRequestedRepeat?: boolean;
     silentSeconds?: number;
   }): Promise<{
+    success: boolean;
+    reaction?: string;
+    action?: 'follow_up' | 'next_question' | 'clarify' | 'end';
+    next_utterance?: string;
     aiResponseText: string;
+    evaluation?: any;
     audioBase64: string | null;
+    audioFormat?: string;
     fillerWordsFound: string[];
     wordCount: number;
     advanceQuestion: boolean;
+    error?: string;
   }> {
     const res = await fetch('/api/interview/speech-turn', {
       method: 'POST',
@@ -100,7 +112,7 @@ export const api = {
       body: JSON.stringify(payload)
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Speech turn failed');
+    if (!json.success && !res.ok) throw new Error(json.error || 'Speech turn failed');
     return json;
   },
 

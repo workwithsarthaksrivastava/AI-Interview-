@@ -1,4 +1,6 @@
 import express from 'express';
+import http from 'http';
+import { WebSocketServer, WebSocket as WsClient } from 'ws';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -313,38 +315,52 @@ Extract detailed structured profile information, evaluate candidate seniority, c
 app.post('/api/interview/plan', async (req, res) => {
   try {
     const {
-      candidateName,
+      candidateName = 'Candidate',
       companyId,
       roleId,
-      difficulty,
-      interviewType,
+      difficulty = 'Mid',
+      interviewType = 'Technical',
       language = 'English',
       durationMinutes = 30,
-      skills = []
+      skills = [],
+      parsedResume = null
     } = req.body;
 
     const company = db.companies.find((c) => c.id === companyId) || db.companies[0];
     const role = db.roles.find((r) => r.id === roleId) || db.roles[0];
 
-    const prompt = `You are a Lead Hiring Bar-Raiser at ${company.name} designing a live mock interview plan.
+    const resumeDetails = parsedResume
+      ? `Summary: ${parsedResume.summary || ''}
+Experience: ${(parsedResume.experience || []).map((e: any) => `${e.role} at ${e.company} (${(e.highlights || []).slice(0, 2).join('; ')})`).join('\n')}
+Projects: ${(parsedResume.projects || []).map((p: any) => `${p.name}: ${p.description}`).join('\n')}
+Skills: ${(parsedResume.skills || skills).join(', ')}`
+      : `Skills: ${skills.slice(0, 10).join(', ')}`;
+
+    const prompt = `You are a Principal Bar-Raiser and Lead Interviewer at ${company.name} designing a comprehensive, role-specific live mock interview plan.
 Candidate: ${candidateName}
 Role: ${role.title}
-Difficulty: ${difficulty}
+Difficulty Level: ${difficulty}
 Round Type: ${interviewType}
 Target Duration: ${durationMinutes} minutes
 Language: ${language}
-Company Persona & Tone: ${company.personaProfile.tone}
-Company Focus Areas: ${company.personaProfile.focusAreas.join(', ')}
-Candidate Skills: ${skills.slice(0, 10).join(', ')}
+Company Tone: ${company.personaProfile?.tone || 'Rigorous & Technical'}
+Company Focus Areas: ${company.personaProfile?.focusAreas?.join(', ') || 'Scalability, Clean Code'}
 
-Create a balanced 4-to-6 question interview agenda:
-1. Warm Welcome & Background probe
-2. Core Technical Concept / Problem solving
-3. Practical Architecture / Coding Scenario
-4. Behavioral / Company Culture Fit (STAR format)
-5. Closing opportunity for candidate questions.
+Candidate Background & Resume Details:
+"""
+${resumeDetails}
+"""
 
-Return structured JSON.`;
+Generate an 8-to-12 question interview plan covering these EXACT 7 stages in order:
+1. "intro": Warm Welcome & background probe (1 question)
+2. "resume deep-dive": In-depth investigation of candidate's past projects, architectural decisions, and technologies claimed on resume (1-2 questions)
+3. "technical": Core technical concepts, fundamentals, and language internals (2-3 questions)
+4. "scenario": Practical architecture / high-throughput / coding scenario (1-2 questions)
+5. "behavioral": Conflict resolution, handling production outages, ownership (STAR method) (1-2 questions)
+6. "fit": Team dynamics, communication, and culture fit at ${company.name} (1 question)
+7. "closing": Wrap-up & welcoming candidate questions (1 question)
+
+Return structured JSON. Every question must be distinct, non-repetitive, and deeply relevant to ${role.title}.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
@@ -391,44 +407,93 @@ Return structured JSON.`;
     res.json({ success: true, plan });
   } catch (error: any) {
     console.error('Error generating plan:', error);
-    // Safe fallback plan
+    // Safe structured 8-question fallback plan across all 7 stages
+    const candidateName = req.body.candidateName || 'Candidate';
+    const company = db.companies.find((c) => c.id === req.body.companyId) || db.companies[0];
+    const role = db.roles.find((r) => r.id === req.body.roleId) || db.roles[0];
+
     res.json({
       success: true,
       plan: {
         interviewId: `plan-${Date.now()}`,
-        candidateName: req.body.candidateName || 'Candidate',
-        companyName: req.body.companyId || 'Tech Organization',
-        roleTitle: req.body.roleId || 'Software Engineer',
-        overview: 'Comprehensive technical and behavioral evaluation round.',
-        warmupIntro: `Hello ${req.body.candidateName || 'there'}, welcome to your interview! It is great to have you here today. Could you briefly introduce yourself and share the most impactful engineering challenge you solved recently?`,
-        closingQuestion: 'That brings us to the end of my prepared questions. What questions do you have for me about our engineering challenges or team culture?',
+        candidateName,
+        companyName: company.name,
+        roleTitle: role.title,
+        overview: `Comprehensive 8-question ${role.title} evaluation at ${company.name}.`,
+        warmupIntro: `Hello ${candidateName}, welcome to your interview for the ${role.title} role at ${company.name}! It's great to have you here today. Could you briefly introduce yourself and share a highlight from your recent engineering work?`,
+        closingQuestion: 'That brings us to the end of our prepared questions. What questions do you have for me about our engineering challenges, architecture, or team culture?',
         questions: [
           {
             id: 'q-plan-1',
-            category: 'Background & Architecture',
-            question: 'Looking at your experience with distributed systems, can you describe how you architected an event-driven data pipeline and how you handled message ordering and failure recovery?',
-            contextOrRationale: 'Verifies real-world architectural experience and failure tolerance.',
-            suggestedDurationSeconds: 300,
-            rubricCriteria: ['Clear architecture diagrams/mental models', 'Dead-letter queue handling', 'Idempotency'],
-            expectedKeywords: ['Kafka', 'Idempotent', 'Retry queues', 'Partitioning']
+            category: 'intro',
+            question: 'To start off, could you walk me through your engineering journey and what drew you specifically to this role at ' + company.name + '?',
+            contextOrRationale: 'Assesses career narrative, motivation, and communication clarity.',
+            suggestedDurationSeconds: 180,
+            rubricCriteria: ['Concise narrative', 'Clear career arc', 'Authentic motivation'],
+            expectedKeywords: ['Experience', 'Growth', 'Impact', 'Architecture']
           },
           {
             id: 'q-plan-2',
-            category: 'Core Technical & Concurrency',
-            question: 'How do you prevent race conditions and maintain consistency when multiple concurrent requests update the same database record in high-traffic APIs?',
-            contextOrRationale: 'Tests understanding of concurrency control and database transactions.',
-            suggestedDurationSeconds: 360,
-            rubricCriteria: ['Optimistic vs Pessimistic locking', 'Redis distributed locks', 'Database isolation levels'],
-            expectedKeywords: ['ACID', 'Row lock', 'Version column', 'Redis redlock']
+            category: 'resume deep-dive',
+            question: 'Looking at your featured projects, can you deep-dive into the most complex technical challenge you solved, detailing the trade-offs you evaluated before choosing that architecture?',
+            contextOrRationale: 'Probes real hands-on architectural experience from resume.',
+            suggestedDurationSeconds: 240,
+            rubricCriteria: ['Specific trade-offs', 'Metric-backed outcomes', 'Technical ownership'],
+            expectedKeywords: ['Trade-offs', 'Bottleneck', 'Latency', 'Reliability']
           },
           {
             id: 'q-plan-3',
-            category: 'Behavioral & Leadership',
-            question: 'Tell me about a time when a critical bug or latency spike hit production on a feature you owned. How did you diagnose it, communicate with stakeholders, and prevent it from recurring?',
-            contextOrRationale: 'Evaluates resilience, ownership, and blameless post-mortem mindset.',
+            category: 'technical',
+            question: 'How do you handle data consistency and concurrency control when multiple distributed services attempt to update the same database record concurrently?',
+            contextOrRationale: 'Tests distributed concurrency primitives and isolation levels.',
+            suggestedDurationSeconds: 240,
+            rubricCriteria: ['Optimistic vs pessimistic locking', 'Distributed locks', 'Idempotency'],
+            expectedKeywords: ['ACID', 'Idempotent', 'Distributed lock', 'Isolation level']
+          },
+          {
+            id: 'q-plan-4',
+            category: 'technical',
+            question: 'Could you explain how memory management and garbage collection work in your primary language or runtime, and what patterns you use to prevent memory leaks in long-running services?',
+            contextOrRationale: 'Verifies runtime internals and resource management knowledge.',
+            suggestedDurationSeconds: 210,
+            rubricCriteria: ['Heap vs stack', 'Reference counting / tracing GC', 'Profiling tools'],
+            expectedKeywords: ['Heap', 'Garbage collection', 'Memory leak', 'Profiler']
+          },
+          {
+            id: 'q-plan-5',
+            category: 'scenario',
+            question: 'Imagine we need to design a real-time notification engine delivering millions of time-sensitive alerts per minute. How would you design the ingestion, queuing, and delivery pipeline to survive sudden traffic spikes?',
+            contextOrRationale: 'Evaluates system design, message brokers, and backpressure handling.',
             suggestedDurationSeconds: 300,
-            rubricCriteria: ['Structured STAR response', 'Clear communication under stress', 'Root-cause remediation'],
-            expectedKeywords: ['Observability', 'Rollback', 'Post-mortem', 'Customer impact']
+            rubricCriteria: ['Message queuing', 'Backpressure & rate limiting', 'Dead letter handling'],
+            expectedKeywords: ['Kafka', 'Message queue', 'Backpressure', 'Idempotency', 'DLQ']
+          },
+          {
+            id: 'q-plan-6',
+            category: 'behavioral',
+            question: 'Tell me about a time when a critical bug or latency regression occurred in production on a system you owned. How did you troubleshoot it under pressure and what remediation steps did you introduce?',
+            contextOrRationale: 'Assesses STAR response, incident triage, and blameless learning culture.',
+            suggestedDurationSeconds: 240,
+            rubricCriteria: ['Structured STAR delivery', 'Observability skills', 'Post-mortem actions'],
+            expectedKeywords: ['Incident', 'Observability', 'Post-mortem', 'Root cause']
+          },
+          {
+            id: 'q-plan-7',
+            category: 'fit',
+            question: 'How do you navigate technical disagreements with peers or senior architects when you hold differing views on an architectural direction?',
+            contextOrRationale: 'Evaluates collaboration, data-driven persuasion, and disagree-and-commit attitude.',
+            suggestedDurationSeconds: 200,
+            rubricCriteria: ['Data-driven consensus', 'Active listening', 'Disagree and commit'],
+            expectedKeywords: ['Trade-offs', 'Prototypes', 'Collaboration', 'Alignment']
+          },
+          {
+            id: 'q-plan-8',
+            category: 'closing',
+            question: 'We have covered great ground today. What questions do you have for me about our tech stack, upcoming roadmap, or team engineering standards?',
+            contextOrRationale: 'Gauges candidate curiosity, engineering standards, and role interest.',
+            suggestedDurationSeconds: 180,
+            rubricCriteria: ['Thoughtful questions', 'Genuine technical curiosity'],
+            expectedKeywords: ['Roadmap', 'Culture', 'Architecture', 'Team']
           }
         ]
       }
@@ -634,128 +699,238 @@ app.post('/api/audio/transcribe', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// LIVE INTERVIEW SPEECH TURN (Deepgram-Only Voice)
+// ANTI-REPETITION HELPERS & LIVE INTERVIEW SPEECH TURN
 // -------------------------------------------------------------
-app.post('/api/interview/speech-turn', async (req, res) => {
-  try {
-    const {
-      candidateName,
-      companyName,
-      roleTitle,
-      difficulty,
-      interviewType,
-      language = 'English',
-      plan,
-      transcriptHistory = [],
-      candidateMessage = '',
-      candidateCode = '',
-      currentQuestionIndex = 0,
-      userRequestedHint = false,
-      userRequestedRepeat = false,
-      silentSeconds = 0
-    } = req.body;
+const STOCK_OPENERS_REGEX = /^\s*(that's great|thats great|that is great|interesting|thank you for sharing|thanks for sharing|great answer|awesome|got it|sounds good|i see|understood|very well|cool|nice|okay|ok|well said|thank you|thanks)[,!.]?/i;
 
-    const currentPlanQ = plan?.questions?.[currentQuestionIndex] || null;
+function hasStockOpener(text: string): boolean {
+  return STOCK_OPENERS_REGEX.test(text.trim());
+}
 
-    const systemPrompt = `You are an elite, natural human-like technical interviewer at ${companyName} conducting a live interview with ${candidateName} for the ${roleTitle} role (${difficulty} level, ${interviewType} round). Language: ${language}.
+function calculateSimilarity(str1: string, str2: string): number {
+  const words1 = new Set(str1.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter((w) => w.length > 2));
+  const words2 = new Set(str2.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter((w) => w.length > 2));
+  if (words1.size === 0 || words2.size === 0) return 0;
+  let intersection = 0;
+  for (const w of words1) {
+    if (words2.has(w)) intersection++;
+  }
+  const union = new Set([...words1, ...words2]).size;
+  return intersection / union;
+}
 
-Current Question Plan:
-${currentPlanQ ? `Category: ${currentPlanQ.category}\nTarget Question: ${currentPlanQ.question}\nKeywords: ${currentPlanQ.expectedKeywords.join(', ')}` : 'Wrap-up & Candidate Questions'}
+function isTooSimilarToRecent(text: string, recentUtterances: string[]): boolean {
+  for (const recent of recentUtterances) {
+    if (calculateSimilarity(text, recent) > 0.6) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function handleInterviewSpeechTurnCore(payload: any) {
+  const {
+    candidateName = 'Candidate',
+    companyName = 'Google',
+    roleTitle = 'Software Engineer',
+    difficulty = 'Mid',
+    interviewType = 'Technical',
+    language = 'English',
+    plan = null,
+    transcriptHistory = [],
+    candidateMessage = '',
+    candidateCode = '',
+    currentQuestionIndex = 0,
+    followUpCount = 0,
+    askedQuestions = [],
+    coveredTopics = [],
+    lastAiUtterances = [],
+    userRequestedHint = false,
+    userRequestedRepeat = false,
+    silentSeconds = 0
+  } = payload;
+
+  const currentPlanQ = plan?.questions?.[currentQuestionIndex] || null;
+
+  let attempts = 0;
+  let lastError: any = null;
+
+  while (attempts < 3) {
+    attempts++;
+    try {
+      const temperature = attempts === 1 ? 0.7 : 0.95;
+
+      const systemPrompt = `You are a Principal Engineer and Lead Interviewer at ${companyName} conducting an interview with ${candidateName} for the ${roleTitle} position (${difficulty} level, ${interviewType} round, language: ${language}).
+
+CURRENT INTERVIEW STATUS:
+Current Question Plan #${currentQuestionIndex + 1}:
+${currentPlanQ ? `Category: ${currentPlanQ.category}
+Target Question: "${currentPlanQ.question}"
+Rationale: ${currentPlanQ.contextOrRationale}
+Criteria: ${(currentPlanQ.rubricCriteria || []).join('; ')}
+Expected Keywords: ${(currentPlanQ.expectedKeywords || []).join(', ')}` : 'Wrap-up & Candidate Questions stage'}
+
+Questions Asked So Far:
+${askedQuestions.length > 0 ? askedQuestions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n') : '(None yet)'}
+
+Topics Covered: ${coveredTopics.join(', ') || '(Starting)'}
+Follow-up count on this question: ${followUpCount} (MAX 2 allowed per question)
+
+Last 10 AI Utterances (CRITICAL: DO NOT REPEAT OR CLOSELY PARAPHRASE ANY OF THESE):
+${lastAiUtterances.length > 0 ? lastAiUtterances.slice(-10).map((u: string) => `- "${u}"`).join('\n') : '(None)'}
 
 Candidate Code in Editor:
 """
-${candidateCode || '(Code editor is empty or not in use)'}
+${candidateCode || '(Empty)'}
 """
 
-Instructions:
-1. Speak naturally like a senior interviewer. Keep spoken turns concise (2-4 sentences max so the candidate speaks most of the time).
-2. If the user requested a hint or has been silent for 20+ seconds, provide a gentle, encouraging conceptual hint without giving away the full answer.
-3. If the user requested repeat, restate the question clearly with friendly encouragement.
-4. If candidate gave a good answer, acknowledge a strong point briefly, and either ask a probing follow-up or transition smoothly to the next question.
-5. If candidate gave a vague or incomplete answer, probe with a specific follow-up question.
-6. If this is the final question, transition into asking: "Do you have any questions for me about our engineering team or culture?".`;
+CORE CONSTRAINTS:
+1. Concise Spoken Turn: 2 to 3 sentences maximum so the candidate speaks most of the time.
+2. Exactly ONE question per turn. Never combine multiple questions.
+3. If user requested hint or silentSeconds >= 20: Provide an encouraging, conceptual hint without giving away the full answer (action = "clarify").
+4. If user requested repeat: Rephrase the question clearly (action = "clarify").
+5. Follow-ups (action = "follow_up"):
+   - MUST explicitly reference a specific term, method, metric, or trade-off the candidate just said.
+   - Max 2 follow-ups per question. If followUpCount >= 2 or candidate was thorough, move to next question (action = "next_question").
+6. Transition to Next Question (action = "next_question"):
+   - Briefly acknowledge their point and smoothly introduce the next question from the interview plan.
+7. End of Interview (action = "end"):
+   - If planned questions are completed, welcome the candidate to ask any questions and conclude.
+8. ANTI-REPETITION (MANDATORY):
+   - Never start with stock openers like "That's great", "Interesting", "Thank you for sharing", "Thanks for sharing", "Awesome", "Got it", "I see", "Understood", "Very well", "Nice".
+   - Start directly with your genuine reaction to what candidate said.
+9. Return strict JSON according to schema.`;
 
-    const contents = [
-      { role: 'user', parts: [{ text: `Transcript so far:\n${transcriptHistory.map((t: any) => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n')}\n\nCandidate just said: "${candidateMessage}"\nCandidate requested hint? ${userRequestedHint}\nCandidate requested repeat? ${userRequestedRepeat}` }] }
-    ];
-
-    // Free-tier text reasoning
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.7
-      }
-    });
-
-    const aiResponseText = response.text || "Thank you. Let's explore that further—could you walk me through the key trade-offs in that approach?";
-
-    // Synthesize using Deepgram Aura TTS (Zero paid Gemini audio)
-    const ttsResult = await synthesizeDeepgramAura(aiResponseText);
-
-    // Quick speech stats computation
-    const fillerWordsFound = (candidateMessage.match(/\b(um|uh|like|basically|actually|you know|sort of|matlab|so yeah)\b/gi) || []).map((w: string) => w.toLowerCase());
-    const wordCount = candidateMessage.trim().split(/\s+/).filter(Boolean).length;
-
-    res.json({
-      success: true,
-      aiResponseText,
-      audioBase64: ttsResult.audioBase64,
-      audioFormat: ttsResult.format,
-      fillerWordsFound,
-      wordCount,
-      advanceQuestion: !userRequestedHint && !userRequestedRepeat && wordCount > 20 && !aiResponseText.toLowerCase().includes('could you clarify')
-    });
-  } catch (error: any) {
-    console.error('Error in speech turn:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Cascaded Turn (Nova-3 STT -> Text LLM -> Aura TTS)
-app.post('/api/interview/cascaded-turn', async (req, res) => {
-  try {
-    const {
-      candidateName,
-      companyName,
-      roleTitle,
-      difficulty,
-      interviewType,
-      language = 'English',
-      transcriptHistory = [],
-      candidateMessage = '',
-      currentQuestionIndex = 0,
-      plan
-    } = req.body;
-
-    const currentPlanQ = plan?.questions?.[currentQuestionIndex] || null;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [
+      const contents = [
         {
           role: 'user',
           parts: [
             {
-              text: `Role: ${roleTitle} at ${companyName}. Current question: ${currentPlanQ?.question || 'General'}. History:\n${transcriptHistory.map((t: any) => `${t.speaker}: ${t.text}`).join('\n')}\nCandidate said: "${candidateMessage}". Respond conversationally in 2-3 sentences.`
+              text: `Transcript so far:
+${transcriptHistory.map((t: any) => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n')}
+
+Candidate just answered:
+"${candidateMessage}"
+
+Candidate requested hint? ${userRequestedHint}
+Candidate requested repeat? ${userRequestedRepeat}
+Silent seconds: ${silentSeconds}`
             }
           ]
         }
-      ]
-    });
+      ];
 
-    const aiResponseText = response.text || "I see. Let's delve into that architecture choice deeper.";
-    const ttsResult = await synthesizeDeepgramAura(aiResponseText);
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              reaction: { type: Type.STRING },
+              action: { type: Type.STRING, enum: ['follow_up', 'next_question', 'clarify', 'end'] },
+              next_utterance: { type: Type.STRING },
+              evaluation: {
+                type: Type.OBJECT,
+                properties: {
+                  relevance: { type: Type.NUMBER },
+                  depth: { type: Type.NUMBER },
+                  clarity: { type: Type.NUMBER },
+                  confidence: { type: Type.NUMBER },
+                  notes: { type: Type.STRING },
+                  whatWasGood: { type: Type.STRING },
+                  whatWasMissing: { type: Type.STRING },
+                  mistakesOrErrors: { type: Type.STRING },
+                  idealModelAnswer: { type: Type.STRING }
+                },
+                required: ['relevance', 'depth', 'clarity', 'confidence', 'notes', 'whatWasGood', 'whatWasMissing', 'mistakesOrErrors', 'idealModelAnswer']
+              }
+            },
+            required: ['reaction', 'action', 'next_utterance', 'evaluation']
+          }
+        }
+      });
 
-    res.json({
-      success: true,
-      aiResponseText,
-      audioBase64: ttsResult.audioBase64,
-      audioFormat: ttsResult.format
+      const parsed = JSON.parse(response.text || '{}');
+      if (!parsed.next_utterance) {
+        throw new Error('LLM did not return next_utterance');
+      }
+
+      // Check anti-repetition: stock opener or high similarity
+      const hasStock = hasStockOpener(parsed.next_utterance);
+      const isSimilar = isTooSimilarToRecent(parsed.next_utterance, lastAiUtterances);
+
+      if ((hasStock || isSimilar) && attempts < 3) {
+        console.warn(`[Anti-Repetition] Retrying turn (Stock: ${hasStock}, Similar: ${isSimilar}, Attempt ${attempts})`);
+        continue;
+      }
+
+      let cleanUtterance = parsed.next_utterance;
+      if (hasStockOpener(cleanUtterance)) {
+        cleanUtterance = cleanUtterance.replace(STOCK_OPENERS_REGEX, '').trim();
+        cleanUtterance = cleanUtterance.charAt(0).toUpperCase() + cleanUtterance.slice(1);
+      }
+
+      // Synthesize TTS audio via Deepgram Aura (zero Gemini audio)
+      const ttsResult = await synthesizeDeepgramAura(cleanUtterance);
+
+      const fillerWordsFound = (candidateMessage.match(/\b(um|uh|like|basically|actually|you know|sort of|matlab|so yeah)\b/gi) || []).map((w: string) => w.toLowerCase());
+      const wordCount = candidateMessage.trim().split(/\s+/).filter(Boolean).length;
+
+      return {
+        success: true,
+        reaction: parsed.reaction,
+        action: parsed.action,
+        next_utterance: cleanUtterance,
+        aiResponseText: cleanUtterance, // Backward compatibility
+        evaluation: parsed.evaluation,
+        audioBase64: ttsResult.audioBase64,
+        audioFormat: ttsResult.format,
+        fillerWordsFound,
+        wordCount,
+        advanceQuestion: parsed.action === 'next_question'
+      };
+    } catch (err: any) {
+      console.warn(`[Turn Generation] Attempt ${attempts} failed:`, err.message);
+      lastError = err;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+
+  // All 3 attempts failed: strictly NO hardcoded canned lines!
+  throw new Error(lastError?.message || 'Reconnecting...');
+}
+
+// Live Interview Speech Turn
+app.post('/api/interview/speech-turn', async (req, res) => {
+  try {
+    const result = await handleInterviewSpeechTurnCore(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(503).json({
+      success: false,
+      error: 'Reconnecting...',
+      message: err.message,
+      retryable: true
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  }
+});
+
+// Cascaded Turn
+app.post('/api/interview/cascaded-turn', async (req, res) => {
+  try {
+    const result = await handleInterviewSpeechTurnCore(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(503).json({
+      success: false,
+      error: 'Reconnecting...',
+      message: err.message,
+      retryable: true
+    });
   }
 });
 
@@ -1381,7 +1556,7 @@ app.get('/api/export/csv/:table', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// VITE DEV SERVER MIDDLEWARE
+// VITE DEV SERVER & DEEPGRAM WEBSOCKET PROXY
 // -------------------------------------------------------------
 async function startServer() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -1393,7 +1568,93 @@ async function startServer() {
 
   app.use(vite.middlewares);
 
-  app.listen(port, '0.0.0.0', () => {
+  const httpServer = http.createServer(app);
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on('upgrade', (request, socket, head) => {
+    try {
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (url.pathname === '/api/deepgram/ws') {
+        wss.handleUpgrade(request, socket, head, (clientWs) => {
+          wss.emit('connection', clientWs, request);
+        });
+      }
+    } catch (e) {
+      console.warn('Upgrade error:', e);
+    }
+  });
+
+  wss.on('connection', (clientWs, req) => {
+    const apiKey = process.env.DEEPGRAM_API_KEY;
+    if (!apiKey) {
+      clientWs.send(JSON.stringify({ type: 'Error', message: 'DEEPGRAM_API_KEY is not configured on server' }));
+      clientWs.close(1008, 'Missing Deepgram API key');
+      return;
+    }
+
+    try {
+      const reqUrl = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      const language = reqUrl.searchParams.get('language') || 'en';
+      const langParam = language === 'hi' || language === 'Hinglish' ? 'hi' : 'en';
+
+      const dgUrl = `wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${langParam}`;
+
+      const dgWs = new WsClient(dgUrl, {
+        headers: {
+          Authorization: `Token ${apiKey}`
+        }
+      });
+
+      dgWs.on('open', () => {
+        if (clientWs.readyState === WsClient.OPEN) {
+          clientWs.send(JSON.stringify({ type: 'Connected', message: 'Deepgram proxy connected' }));
+        }
+      });
+
+      dgWs.on('message', (data, isBinary) => {
+        if (clientWs.readyState === WsClient.OPEN) {
+          clientWs.send(data, { binary: isBinary });
+        }
+      });
+
+      dgWs.on('error', (err) => {
+        console.warn('[Deepgram WS Proxy] Deepgram socket error:', err.message);
+        if (clientWs.readyState === WsClient.OPEN) {
+          clientWs.send(JSON.stringify({ type: 'Error', message: err.message }));
+        }
+      });
+
+      dgWs.on('close', (code, reason) => {
+        if (clientWs.readyState === WsClient.OPEN) {
+          clientWs.close(code, reason);
+        }
+      });
+
+      clientWs.on('message', (data, isBinary) => {
+        if (dgWs.readyState === WsClient.OPEN) {
+          dgWs.send(data, { binary: isBinary });
+        }
+      });
+
+      clientWs.on('close', () => {
+        if (dgWs.readyState === WsClient.OPEN) {
+          dgWs.close();
+        }
+      });
+
+      clientWs.on('error', (err) => {
+        console.warn('[Deepgram WS Proxy] Client socket error:', err.message);
+        if (dgWs.readyState === WsClient.OPEN) {
+          dgWs.close();
+        }
+      });
+    } catch (err: any) {
+      console.warn('[Deepgram WS Proxy] Connection initialization error:', err);
+      clientWs.close();
+    }
+  });
+
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`[InterviewIQ] Server running on http://0.0.0.0:${port}`);
   });
 }
