@@ -1,0 +1,6 @@
+{
+  "name": "InterviewIQ",
+  "description": "AI-powered live mock interview platform with real-time voice conversation, scheduling, resume-based personalization, company and role-specific interviews, and an admin dashboard.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
