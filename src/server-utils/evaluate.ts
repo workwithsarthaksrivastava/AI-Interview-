@@ -1,7 +1,7 @@
 import { Type } from '@google/genai';
-import { db, getGeminiClient, logAudit } from './db';
-import { DEMO_EVALUATION_REPORT } from '../data/seedData';
-import { EvaluationReport } from '../types';
+import { db, getGeminiClient, logAudit } from './db.js';
+import { DEMO_EVALUATION_REPORT } from '../data/seedData.js';
+import { EvaluationReport } from '../types/index.js';
 
 export async function evaluateInterviewCore(payload: any): Promise<EvaluationReport> {
   const req = { body: payload };

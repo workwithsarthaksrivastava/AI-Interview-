@@ -1,6 +1,6 @@
 import { Type } from '@google/genai';
-import { getGeminiClient, logAudit } from './db';
-import { DEMO_CANDIDATE_RESUME } from '../data/seedData';
+import { getGeminiClient, logAudit } from './db.js';
+import { DEMO_CANDIDATE_RESUME } from '../data/seedData.js';
 
 // Heuristic Resume Extraction Engine (High-fidelity parser when Gemini key is offline)
 export function parseResumeHeuristically(resumeText: string, fileName = 'resume.pdf') {

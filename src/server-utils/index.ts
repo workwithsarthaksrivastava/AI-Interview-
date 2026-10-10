@@ -1,16 +1,16 @@
-export * from './db';
-export * from './resume';
-export * from './plan';
-export * from './speechTurn';
-export * from './evaluate';
+export * from './db.js';
+export * from './resume.js';
+export * from './plan.js';
+export * from './speechTurn.js';
+export * from './evaluate.js';
 
-import { db, recordDeepgramUsage, logAudit, synthesizeDeepgramAura, getGeminiClient } from './db';
-import { parseResumeWithGemini, parseResumeHeuristically } from './resume';
-import { generateInterviewPlanWithGemini, generateAdaptiveInterviewPlan } from './plan';
-import { handleInterviewSpeechTurnCore } from './speechTurn';
-import { evaluateInterviewCore } from './evaluate';
-import { Company, Role, QuestionItem, InterviewSession, EvaluationReport } from '../types';
-import { DEMO_CANDIDATE_RESUME } from '../data/seedData';
+import { db, recordDeepgramUsage, logAudit, synthesizeDeepgramAura, getGeminiClient } from './db.js';
+import { parseResumeWithGemini, parseResumeHeuristically } from './resume.js';
+import { generateInterviewPlanWithGemini, generateAdaptiveInterviewPlan } from './plan.js';
+import { handleInterviewSpeechTurnCore } from './speechTurn.js';
+import { evaluateInterviewCore } from './evaluate.js';
+import { Company, Role, QuestionItem, InterviewSession, EvaluationReport } from '../types/index.js';
+import { DEMO_CANDIDATE_RESUME } from '../data/seedData.js';
 import { Type } from '@google/genai';
 
 export function setCors(res: any) {

@@ -1,5 +1,5 @@
 import { Type } from '@google/genai';
-import { db, getGeminiClient } from './db';
+import { db, getGeminiClient } from './db.js';
 
 
 export function generateAdaptiveInterviewPlan(params: {

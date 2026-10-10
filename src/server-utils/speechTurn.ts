@@ -1,6 +1,6 @@
 import { Type } from '@google/genai';
-import { db, getGeminiClient, synthesizeDeepgramAura } from './db';
-import { InterviewPlan } from '../types';
+import { db, getGeminiClient, synthesizeDeepgramAura } from './db.js';
+import { InterviewPlan } from '../types/index.js';
 
 const STOCK_OPENERS_REGEX = /^\s*(that's great|thats great|that is great|interesting|thank you for sharing|thanks for sharing|great answer|awesome|got it|sounds good|i see|understood|very well|cool|nice|okay|ok|well said|thank you|thanks)[,!.]?/i;
 
