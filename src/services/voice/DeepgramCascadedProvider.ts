@@ -209,7 +209,15 @@ export class DeepgramCascadedProvider implements VoiceProvider {
         this.workletNode.port.onmessage = (e) => {
           this.processAudioBuffer(e.data);
         };
+        
+        // CRITICAL: Web Audio API is a pull-based graph.
+        // Connecting through a zero-gain node to audioCtx.destination guarantees
+        // the browser audio render loop calls process() on every quantum without mic audio echoing back.
+        const silentGain = this.audioCtx.createGain();
+        silentGain.gain.value = 0;
         source.connect(this.workletNode);
+        this.workletNode.connect(silentGain);
+        silentGain.connect(this.audioCtx.destination);
         audioWorkletSuccess = true;
       } catch (e) {
         console.warn('[AudioWorklet] Registration failed, falling back to ScriptProcessor:', e);
@@ -217,14 +225,17 @@ export class DeepgramCascadedProvider implements VoiceProvider {
     }
 
     if (!audioWorkletSuccess) {
-      // Robust ScriptProcessor fallback
+      // Robust ScriptProcessor fallback with zero-gain sink
       this.scriptProcessorNode = this.audioCtx.createScriptProcessor(4096, 1, 1);
       this.scriptProcessorNode.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
         this.processAudioBuffer(inputData);
       };
+      const silentGain = this.audioCtx.createGain();
+      silentGain.gain.value = 0;
       source.connect(this.scriptProcessorNode);
-      this.scriptProcessorNode.connect(this.audioCtx.destination);
+      this.scriptProcessorNode.connect(silentGain);
+      silentGain.connect(this.audioCtx.destination);
     }
   }
 

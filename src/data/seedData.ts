@@ -769,7 +769,7 @@ export const SEED_QUESTIONS: QuestionItem[] = [
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   aiModel: 'gemini-3.8-flash',
   aiVoice: 'Zephyr',
-  voiceProvider: 'deepgram-agent',
+  voiceProvider: 'deepgram-cascaded',
   deepgramVoice: 'aura-asteria-en',
   deepgramSttLanguage: 'en',
   deepgramCreditLimit: 200,

@@ -244,7 +244,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   language: 'English',
   setLanguage: (l) => set({ language: l }),
 
-  voiceProvider: 'deepgram-agent',
+  voiceProvider: 'deepgram-cascaded',
   setVoiceProvider: (p) => set({ voiceProvider: p }),
   deepgramVoice: 'aura-asteria-en',
   setDeepgramVoice: (v) => set({ deepgramVoice: v }),

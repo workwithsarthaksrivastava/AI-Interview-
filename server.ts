@@ -1057,7 +1057,7 @@ app.get('/api/deepgram/credit', (req, res) => {
     success: true,
     credit: db.creditStatus,
     hasKey,
-    activeProvider: hasKey ? db.settings.voiceProvider : 'web-speech'
+    activeProvider: hasKey ? (db.settings.voiceProvider || 'deepgram-cascaded') : 'deepgram-cascaded'
   });
 });
 
@@ -2441,7 +2441,7 @@ async function startServer() {
       const language = reqUrl.searchParams.get('language') || 'en';
       const langParam = language === 'hi' || language === 'Hinglish' ? 'hi' : 'en';
 
-      const dgUrl = `wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${langParam}`;
+      const dgUrl = `wss://api.deepgram.com/v1/listen?model=nova-3&encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${langParam}`;
 
       const dgWs = new WsClient(dgUrl, {
         headers: {
@@ -2449,9 +2449,17 @@ async function startServer() {
         }
       });
 
+      const messageQueue: Array<{ data: any; isBinary: boolean }> = [];
+
       dgWs.on('open', () => {
         if (clientWs.readyState === WsClient.OPEN) {
           clientWs.send(JSON.stringify({ type: 'Connected', message: 'Deepgram proxy connected' }));
+        }
+        while (messageQueue.length > 0) {
+          const item = messageQueue.shift();
+          if (item && dgWs.readyState === WsClient.OPEN) {
+            dgWs.send(item.data, { binary: item.isBinary });
+          }
         }
       });
 
@@ -2482,6 +2490,8 @@ async function startServer() {
       clientWs.on('message', (data, isBinary) => {
         if (dgWs.readyState === WsClient.OPEN) {
           dgWs.send(data, { binary: isBinary });
+        } else if (dgWs.readyState === WsClient.CONNECTING) {
+          messageQueue.push({ data, isBinary });
         }
       });
 

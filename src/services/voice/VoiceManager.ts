@@ -11,12 +11,12 @@ import { WebSpeechProvider } from './WebSpeechProvider';
 
 export class VoiceManager {
   private activeProvider: VoiceProvider | null = null;
-  private currentProviderType: VoiceProviderType = 'deepgram-agent';
+  private currentProviderType: VoiceProviderType = 'deepgram-cascaded';
   private sessionStartTime: number = 0;
   private interviewId: string = '';
 
-  constructor(preferredProvider: VoiceProviderType = 'deepgram-agent') {
-    this.currentProviderType = preferredProvider;
+  constructor(preferredProvider: VoiceProviderType = 'deepgram-cascaded') {
+    this.currentProviderType = preferredProvider === 'deepgram-agent' ? 'deepgram-cascaded' : preferredProvider;
   }
 
   get currentProviderName(): VoiceProviderType {
@@ -31,19 +31,22 @@ export class VoiceManager {
     this.sessionStartTime = Date.now();
     this.interviewId = interviewId;
 
+    // Prefer Deepgram cascaded live pipeline (Linear16 16kHz + Nova-3 + Aura TTS)
+    const requested = config.provider || this.currentProviderType;
+    this.currentProviderType = requested === 'deepgram-agent' ? 'deepgram-cascaded' : requested;
+
     // Check server key configuration & credit status before starting
     try {
       const creditRes = await fetch('/api/deepgram/credit');
       const creditJson = await creditRes.json();
       if (creditJson.success) {
-        if (!creditJson.hasKey || creditJson.activeProvider === 'web-speech') {
+        if (!creditJson.hasKey) {
+          console.warn('[VoiceManager] Deepgram API key missing on server, falling back to Web Speech.');
           this.currentProviderType = 'web-speech';
-        } else if (creditJson.activeProvider) {
-          this.currentProviderType = creditJson.activeProvider;
         }
       }
     } catch {
-      this.currentProviderType = 'web-speech';
+      // Continue with currentProviderType
     }
 
     const wrappedEvents: VoiceProviderEvents = {
@@ -77,14 +80,12 @@ export class VoiceManager {
       await this.activeProvider.start(config, wrappedEvents);
       return this.activeProvider.name;
     } catch (err: any) {
-      console.warn(`Failed to start ${this.currentProviderType}, falling back to WebSpeech:`, err);
+      console.warn(`Failed to start ${this.currentProviderType}:`, err);
       if (this.activeProvider) {
         try { await this.activeProvider.stop(); } catch {}
       }
-      this.currentProviderType = 'web-speech';
-      this.activeProvider = this.createProvider('web-speech');
-      await this.activeProvider.start(config, wrappedEvents);
-      return 'web-speech';
+      events.onError(err.message || 'Microphone or live audio session failed to start.');
+      throw err;
     }
   }
 

@@ -278,11 +278,11 @@ export const Step5LobbyCalibration: React.FC = () => {
             if (event.text.trim()) {
               recognizedTextRef.current = event.text.trim();
               setCandidateSampleTranscript(event.text.trim());
-              if (event.isFinal) {
+              if (event.isFinal || event.isSpeechFinal) {
                 if (listeningTimerRef.current) clearTimeout(listeningTimerRef.current);
                 listeningTimerRef.current = setTimeout(() => {
                   finishListeningAndTranscribe();
-                }, 800);
+                }, 1500);
               }
             }
           },
@@ -323,11 +323,11 @@ export const Step5LobbyCalibration: React.FC = () => {
       }
     }
 
-    // Auto-finalize after 6 seconds of listening if candidate stopped speaking
+    // Auto-finalize after 20 seconds of listening if candidate stopped speaking
     if (listeningTimerRef.current) clearTimeout(listeningTimerRef.current);
     listeningTimerRef.current = setTimeout(() => {
       finishListeningAndTranscribe();
-    }, 6000);
+    }, 20000);
   };
 
   // Stop recording and transcribe audio

@@ -6,7 +6,7 @@ import { VoiceOrb, OrbState } from '../common/VoiceOrb';
 import { CodeEditorPanel } from './CodeEditorPanel';
 import { WhiteboardPanel } from './WhiteboardPanel';
 import { GlassButton } from '../common/GlassButton';
-import { QuestionEvaluation } from '../../types';
+import { QuestionEvaluation, TranscriptTurn } from '../../types';
 import {
   Mic,
   MicOff,

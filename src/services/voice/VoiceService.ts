@@ -7,7 +7,7 @@ import {
 
 class VoiceServiceWrapper {
   private manager: VoiceManager | null = null;
-  private currentType: VoiceProviderType = 'deepgram-agent';
+  private currentType: VoiceProviderType = 'deepgram-cascaded';
 
   getProviderName(): VoiceProviderType {
     return this.manager?.currentProviderName || this.currentType;
@@ -18,7 +18,7 @@ class VoiceServiceWrapper {
     events: VoiceProviderEvents,
     interviewId?: string
   ): Promise<VoiceProviderType> {
-    this.currentType = config.provider || 'deepgram-agent';
+    this.currentType = config.provider || 'deepgram-cascaded';
     this.manager = new VoiceManager(this.currentType);
     return await this.manager.start(config, events, interviewId);
   }
