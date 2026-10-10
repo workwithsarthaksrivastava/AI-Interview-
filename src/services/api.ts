@@ -91,6 +91,7 @@ export const api = {
     lastAiUtterances?: string[];
     userRequestedHint?: boolean;
     userRequestedRepeat?: boolean;
+    userRequestedChallenge?: boolean;
     silentSeconds?: number;
   }): Promise<{
     success: boolean;

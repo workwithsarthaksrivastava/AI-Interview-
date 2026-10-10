@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -17,17 +17,11 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
   className = '',
   subtext
 }) => {
-  const [pulse, setPulse] = useState(1);
-
-  // Subtle audio reactivity
-  useEffect(() => {
-    if (state === 'speaking' || state === 'listening') {
-      const dynamicScale = 1 + (audioLevel / 100) * 0.22;
-      setPulse(dynamicScale);
-    } else {
-      setPulse(1);
-    }
-  }, [audioLevel, state]);
+  // Pure dynamic audio reactivity without state update loops
+  const pulse =
+    state === 'speaking' || state === 'listening'
+      ? 1 + (Math.max(0, Math.min(100, audioLevel)) / 100) * 0.22
+      : 1;
 
   const stateLabels: Record<OrbState, string> = {
     idle: 'Interviewer Ready',

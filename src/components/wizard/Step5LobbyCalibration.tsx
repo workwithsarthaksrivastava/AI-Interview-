@@ -453,9 +453,12 @@ export const Step5LobbyCalibration: React.FC = () => {
     evaluateSampleCandidateTest(verifiedText, 95);
   };
 
-  // Pre-generate interview plan when calibration passes
+  // Pre-generate interview plan when calibration passes (single-flight guard)
+  const hasRequestedPlanRef = useRef(false);
+
   useEffect(() => {
-    if (sampleTestPassed && selectedCompany && selectedRole) {
+    if (sampleTestPassed && selectedCompany && selectedRole && !hasRequestedPlanRef.current) {
+      hasRequestedPlanRef.current = true;
       api
         .generateInterviewPlan({
           candidateName: currentUser.name,
@@ -471,9 +474,12 @@ export const Step5LobbyCalibration: React.FC = () => {
         .then((plan) => {
           setInterviewPlan(plan);
         })
-        .catch(console.error);
+        .catch((err) => {
+          hasRequestedPlanRef.current = false;
+          console.error(err);
+        });
     }
-  }, [sampleTestPassed, selectedCompany, selectedRole, parsedResume]);
+  }, [sampleTestPassed, selectedCompany?.id, selectedRole?.id, difficulty, interviewType, language, durationMinutes]);
 
   // Start 10-second countdown into the live call
   const handleStartInterviewClicked = () => {

@@ -26,10 +26,10 @@ export const Step3RoleSelect: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
 
   useEffect(() => {
-    if (selectedCompany) {
+    if (selectedCompany?.id) {
       api.getRoles(selectedCompany.id).then(setRoles).catch(console.error);
     }
-  }, [selectedCompany]);
+  }, [selectedCompany?.id]);
 
   const interviewTypes: InterviewType[] = ['Technical', 'HR', 'Behavioral', 'System Design', 'Mixed'];
   const difficultyLevels: InterviewDifficulty[] = ['Fresher', 'Mid', 'Senior'];

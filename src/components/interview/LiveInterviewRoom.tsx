@@ -21,7 +21,8 @@ import {
   Sparkles,
   AlertCircle,
   RefreshCw,
-  Volume2
+  Volume2,
+  Zap
 } from 'lucide-react';
 
 export type LiveEngineState =
@@ -115,12 +116,28 @@ export const LiveInterviewRoom: React.FC = () => {
 
   // Silence timing
   const [silenceSeconds, setSilenceSeconds] = useState<number>(0);
+  const silenceSecondsRef = useRef<number>(0);
+  silenceSecondsRef.current = silenceSeconds;
+
+  const elapsedSecondsRef = useRef<number>(elapsedSeconds);
+  elapsedSecondsRef.current = elapsedSeconds;
+
+  const transcriptRef = useRef<TranscriptTurn[]>(transcript);
+  transcriptRef.current = transcript;
+
+  const codeSnippetRef = useRef<string>(codeSnippet);
+  codeSnippetRef.current = codeSnippet;
+
   const hasNudgedThisQuestionRef = useRef<boolean>(false);
 
   // Text fallback mode
   const [isTextMode, setIsTextMode] = useState<boolean>(false);
   const [textInput, setTextInput] = useState<string>('');
   const [showCaptions, setShowCaptions] = useState<boolean>(true);
+
+  // Active Follow-Up Probe state (for displaying interactive probe in UI)
+  const [activeProbeText, setActiveProbeText] = useState<string>('');
+  const [followUpProbeCount, setFollowUpProbeCount] = useState<number>(0);
 
   // End Interview confirmation modal
   const [showEndModal, setShowEndModal] = useState<boolean>(false);
@@ -271,7 +288,7 @@ export const LiveInterviewRoom: React.FC = () => {
   // -------------------------------------------------------------
   const executeAiTurn = useCallback(async (
     candidateMessage: string,
-    options: { requestedHint?: boolean; requestedRepeat?: boolean } = {}
+    options: { requestedHint?: boolean; requestedRepeat?: boolean; requestedChallenge?: boolean } = {}
   ) => {
     // Single-flight guard: never trigger if already processing or playing TTS
     if (isInFlightLlmRef.current || isPlayingTtsRef.current) {
@@ -298,8 +315,8 @@ export const LiveInterviewRoom: React.FC = () => {
         id: `turn-cand-${Date.now()}`,
         speaker: 'candidate',
         text: candidateMessage.trim(),
-        timestamp: formatTimer(elapsedSeconds),
-        secondsFromStart: elapsedSeconds,
+        timestamp: formatTimer(elapsedSecondsRef.current),
+        secondsFromStart: elapsedSecondsRef.current,
         questionIndex: currentQuestionIndex
       });
 
@@ -333,9 +350,9 @@ export const LiveInterviewRoom: React.FC = () => {
           interviewType,
           language,
           plan: interviewPlan,
-          transcriptHistory: transcript,
+          transcriptHistory: transcriptRef.current,
           candidateMessage: candidateMessage.trim(),
-          candidateCode: codeSnippet,
+          candidateCode: codeSnippetRef.current,
           currentQuestionIndex,
           followUpCount: followUpCountRef.current,
           askedQuestions: askedQuestionsRef.current,
@@ -343,7 +360,8 @@ export const LiveInterviewRoom: React.FC = () => {
           lastAiUtterances: lastAiUtterancesRef.current,
           userRequestedHint: options.requestedHint || false,
           userRequestedRepeat: options.requestedRepeat || false,
-          silentSeconds: silenceSeconds
+          userRequestedChallenge: options.requestedChallenge || false,
+          silentSeconds: silenceSecondsRef.current
         });
 
         if (turnResult && turnResult.success) {
@@ -365,9 +383,28 @@ export const LiveInterviewRoom: React.FC = () => {
     if (abortController.signal.aborted) return;
 
     if (!turnSuccess || !turnResult) {
-      setErrorMessage('Reconnecting... Unable to reach interviewer. Click retry below.');
-      transitionEngineState('LISTENING');
-      return;
+      console.warn('[LiveInterviewRoom] Generating local recovery turn from interview plan');
+      const curQ = interviewPlan?.questions?.[currentQuestionIndex];
+      const fallbackUtterance = options.requestedRepeat
+        ? `Certainly! To restate the active question: ${curQ?.question || 'Could you walk me through your technical background and experience?'}`
+        : options.requestedHint
+        ? `Here is a hint to guide your thinking: Consider ${curQ?.expectedKeywords?.slice(0, 2).join(' and ') || 'the trade-offs and scalability'}. Focus on how you would structure the design.`
+        : options.requestedChallenge
+        ? `Let's raise the bar: If traffic surges by 20x and a regional datastore experiences a 5-second network partition, how do you prevent cascading thread pool starvation and data corruption?`
+        : `That provides useful context. Building directly on what you just shared, what was the toughest operational failure mode you guarded against in that architecture?`;
+
+      turnResult = {
+        success: true,
+        reaction: 'Interview turn recovered.',
+        action: 'follow_up',
+        next_utterance: fallbackUtterance,
+        aiResponseText: fallbackUtterance,
+        audioBase64: null,
+        fillerWordsFound: [],
+        wordCount: candidateMessage.trim().split(/\s+/).filter(Boolean).length,
+        advanceQuestion: false
+      };
+      setErrorMessage('');
     }
 
     const aiUtterance = turnResult.next_utterance || turnResult.aiResponseText;
@@ -422,15 +459,19 @@ export const LiveInterviewRoom: React.FC = () => {
     // Advance question or follow-up count
     if (turnResult.action === 'follow_up') {
       followUpCountRef.current += 1;
-      if (followUpCountRef.current >= 2) {
-        followUpCountRef.current = 0;
-        setCurrentQuestionIndex((prev) => Math.min((interviewPlan?.questions?.length || 4) - 1, prev + 1));
-        hasNudgedThisQuestionRef.current = false;
-      }
+      setFollowUpProbeCount(followUpCountRef.current);
+      setActiveProbeText(aiUtterance);
+      // DO NOT advance question index during follow-up probe on current question
     } else if (turnResult.action === 'next_question') {
       followUpCountRef.current = 0;
-      setCurrentQuestionIndex((prev) => Math.min((interviewPlan?.questions?.length || 4) - 1, prev + 1));
+      setFollowUpProbeCount(0);
+      setActiveProbeText('');
+      setCurrentQuestionIndex((prev) => Math.min((interviewPlan?.questions?.length || 8) - 1, prev + 1));
       hasNudgedThisQuestionRef.current = false;
+    } else if (turnResult.action === 'end') {
+      followUpCountRef.current = 0;
+      setFollowUpProbeCount(0);
+      setActiveProbeText('');
     }
 
     // Enqueue speech into FIFO player
@@ -447,18 +488,19 @@ export const LiveInterviewRoom: React.FC = () => {
     interviewType,
     language,
     interviewPlan,
-    transcript,
-    codeSnippet,
     currentQuestionIndex,
-    silenceSeconds,
-    elapsedSeconds,
     addTranscriptTurn,
     incrementFillerWords,
     setCurrentPaceWpm,
     setCurrentQuestionIndex,
     transitionEngineState,
-    enqueueTtsUtterance
+    enqueueTtsUtterance,
+    setActiveProbeText,
+    setFollowUpProbeCount
   ]);
+
+  const executeAiTurnRef = useRef(executeAiTurn);
+  executeAiTurnRef.current = executeAiTurn;
 
   // -------------------------------------------------------------
   // TURN-TAKING SPEECH FINAL & DEBOUNCE LOGIC
@@ -491,9 +533,9 @@ export const LiveInterviewRoom: React.FC = () => {
       // Valid candidate response!
       bufferedCandidateTextRef.current = '';
       setInterimTranscript('');
-      executeAiTurn(buffered);
+      executeAiTurnRef.current(buffered);
     }, 1200);
-  }, [executeAiTurn, transitionEngineState]);
+  }, [transitionEngineState]);
 
   // -------------------------------------------------------------
   // INITIALIZE VOICE ENGINE ON MOUNT (DEEPGRAM PIPELINE)
@@ -639,33 +681,32 @@ export const LiveInterviewRoom: React.FC = () => {
   useEffect(() => {
     const silenceInterval = setInterval(() => {
       if (engineStateRef.current === 'LISTENING') {
-        setSilenceSeconds((prev) => {
-          const next = prev + 1;
+        const next = silenceSecondsRef.current + 1;
+        silenceSecondsRef.current = next;
+        setSilenceSeconds(next);
 
-          // 12s silence: polite nudge once
-          if (next === 12 && !hasNudgedThisQuestionRef.current && !isInFlightLlmRef.current) {
-            hasNudgedThisQuestionRef.current = true;
-            executeAiTurn('', { requestedHint: true });
-          }
+        // 12s silence: polite nudge once (clean execution outside updater)
+        if (next === 12 && !hasNudgedThisQuestionRef.current && !isInFlightLlmRef.current) {
+          hasNudgedThisQuestionRef.current = true;
+          executeAiTurnRef.current('', { requestedHint: true });
+        }
 
-          // 25s silence: move on to next question
-          if (next === 25 && !isInFlightLlmRef.current) {
-            hasNudgedThisQuestionRef.current = false;
-            addToast('info', 'Moving forward to next question...');
-            executeAiTurn("Let's move on to the next question.");
-          }
-
-          return next;
-        });
+        // 25s silence: move on to next question (clean execution outside updater)
+        if (next === 25 && !isInFlightLlmRef.current) {
+          hasNudgedThisQuestionRef.current = false;
+          addToast('info', 'Moving forward to next question...');
+          executeAiTurnRef.current("Let's move on to the next question.");
+        }
       }
     }, 1000);
 
     return () => clearInterval(silenceInterval);
-  }, [executeAiTurn, addToast]);
+  }, [addToast]);
 
-  // Elapsed seconds timer
+  // Elapsed seconds timer (using ref sync)
   useEffect(() => {
     const interval = setInterval(() => {
+      elapsedSecondsRef.current += 1;
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
@@ -686,6 +727,14 @@ export const LiveInterviewRoom: React.FC = () => {
     handleBargeIn();
     addToast('info', 'Asking interviewer to repeat the question...');
     executeAiTurn('Could you repeat the question please?', { requestedRepeat: true });
+  };
+
+  const handleChallengeMe = () => {
+    handleBargeIn();
+    addToast('warning', 'Requesting a tough, high-stakes bar-raiser challenge...');
+    executeAiTurn('Please challenge me with a tough follow-up on what I just shared!', {
+      requestedChallenge: true
+    });
   };
 
   const handleSendText = () => {
@@ -847,12 +896,56 @@ export const LiveInterviewRoom: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Center Stage: Voice Orb & Floating Interviewer */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
+      {/* Main Center Stage: Active Question & Voice Orb */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center my-4 w-full max-w-3xl mx-auto">
+        {/* Sleek Active Question & Interactive Probe Banner */}
+        <div className="w-full px-4 sm:px-5 py-3.5 mb-4 rounded-2xl glass-2 border border-sage-300/25 shadow-xl text-left transition-all animate-in fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-lg bg-sage-500/20 border border-sage-300/20 text-mint font-semibold text-[10px] tracking-wider uppercase">
+                Stage {Math.min(currentQuestionIndex + 1, totalQuestions)} of {totalQuestions} · {currentQ?.category || 'Technical'}
+              </span>
+              {activeProbeText ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-gold/20 border border-gold/40 text-gold-light text-[10px] font-bold flex items-center gap-1 animate-pulse">
+                  <Zap className="w-3 h-3 text-gold" /> Creative Follow-Up Probe ({followUpProbeCount || 1}/2)
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full bg-mint/20 border border-mint/40 text-mint text-[10px] font-semibold">
+                  Core Evaluation Question
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] text-text-muted hidden sm:inline">
+              {activeProbeText ? 'Active Probe' : 'Current Target Question'}
+            </span>
+          </div>
+
+          <p className="text-xs sm:text-sm font-medium text-text-primary leading-relaxed">
+            {activeProbeText ? (
+              <span className="text-gold-light font-semibold">
+                "{activeProbeText}"
+              </span>
+            ) : (
+              currentQ?.question || 'Please introduce yourself and your recent engineering accomplishments.'
+            )}
+          </p>
+
+          {currentQ?.expectedKeywords && currentQ.expectedKeywords.length > 0 && (
+            <div className="mt-2.5 pt-2 border-t border-sage-300/15 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-text-muted font-medium">Evaluation Focus:</span>
+              {currentQ.expectedKeywords.slice(0, 5).map((kw, i) => (
+                <span key={i} className="px-2 py-0.5 rounded-md bg-sage-950/60 border border-sage-300/15 text-[10px] text-mint/80 font-mono">
+                  {kw}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         <VoiceOrb
           state={orbState}
           audioLevel={audioInputLevel}
-          size={230}
+          size={210}
           subtext={
             engineState === 'AI_SPEAKING'
               ? 'Interviewer speaking (you can interrupt anytime)'
@@ -869,6 +962,17 @@ export const LiveInterviewRoom: React.FC = () => {
           <div className="mt-4 px-4 py-2 rounded-2xl bg-sage-950/80 border border-status-warning/40 flex items-center gap-2 text-xs shadow-lg animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-gold shrink-0" />
             <span className="text-text-primary">{errorMessage || silenceWarning}</span>
+            {errorMessage && (
+              <button
+                onClick={() => {
+                  setErrorMessage('');
+                  executeAiTurn('Could you repeat the question please?', { requestedRepeat: true });
+                }}
+                className="ml-2 px-2 py-0.5 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint text-[11px] font-semibold flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry Turn
+              </button>
+            )}
             {silenceWarning && (
               <button
                 onClick={handleRetryMic}
@@ -953,6 +1057,17 @@ export const LiveInterviewRoom: React.FC = () => {
             >
               <RotateCcw className="w-3.5 h-3.5 text-sage-300" />
               <span className="hidden sm:inline">Repeat</span>
+            </button>
+
+            {/* Challenge Me / Tough Follow-Up Probe */}
+            <button
+              onClick={handleChallengeMe}
+              disabled={engineState === 'PROCESSING'}
+              className="px-3 py-2 rounded-xl bg-gold/15 hover:bg-gold/25 border border-gold/30 text-gold-light text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-sm"
+              title="Ask AI interviewer for a tough, creative bar-raiser challenge"
+            >
+              <Zap className="w-3.5 h-3.5 text-gold animate-pulse" />
+              <span className="hidden sm:inline">Challenge Me</span>
             </button>
           </div>
 
