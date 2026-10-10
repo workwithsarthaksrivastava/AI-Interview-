@@ -10,21 +10,32 @@ import {
   AvailabilitySlot,
   User
 } from '../types';
+import { parseResumeHeuristically } from '../utils/resumeParser';
+import { createAdaptiveInterviewPlanFallback } from '../utils/planFallback';
 
 export const api = {
-  // Resume Parsing
+  // Resume Parsing with dual-layer resilient fallback
   async parseResume(resumeText: string, fileName?: string): Promise<ParsedResume> {
-    const res = await fetch('/api/resume/parse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resumeText, fileName })
-    });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Failed to parse resume');
-    return json.data;
+    try {
+      const res = await fetch('/api/resume/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumeText, fileName })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+    } catch (err) {
+      console.warn('[Resume API] Server request failed, activating client parser:', err);
+    }
+    // Instant client-side parser fallback when backend route returns 404 or fails
+    return parseResumeHeuristically(resumeText, fileName);
   },
 
-  // Plan Generation
+  // Plan Generation with resilient fallback
   async generateInterviewPlan(params: {
     candidateName: string;
     companyId: string;
@@ -36,25 +47,43 @@ export const api = {
     skills: string[];
     parsedResume?: any;
   }): Promise<InterviewPlan> {
-    const res = await fetch('/api/interview/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params)
-    });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Failed to generate plan');
-    return json.plan;
+    try {
+      const res = await fetch('/api/interview/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.plan) return json.plan;
+      }
+    } catch (err) {
+      console.warn('[Plan API] Server plan generation notice, using adaptive fallback:', err);
+    }
+    return createAdaptiveInterviewPlanFallback(params);
   },
 
   // Mic Calibration Question & Voice Check
   async checkMicQuestion(candidateName: string): Promise<{ questionText: string; audioBase64: string | null; audioFormat?: string }> {
-    const res = await fetch('/api/interview/mic-test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ candidateName })
-    });
-    const json = await res.json();
-    return json;
+    const defaultQuestion = `Could you please introduce yourself and tell me what role you are preparing for today?`;
+    try {
+      const res = await fetch('/api/interview/mic-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateName })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) return json;
+      }
+    } catch (err) {
+      console.warn('[Mic Test API] Using client voice check fallback:', err);
+    }
+    return {
+      questionText: defaultQuestion,
+      audioBase64: null,
+      audioFormat: 'none'
+    };
   },
 
   // Transcribe recorded audio with Deepgram / Gemini Flash

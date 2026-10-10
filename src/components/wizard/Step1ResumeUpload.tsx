@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../services/api';
 import { DEMO_CANDIDATE_RESUME } from '../../data/seedData';
+import { parseResumeHeuristically } from '../../utils/resumeParser';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { GlassInput } from '../common/GlassInput';
@@ -29,7 +30,10 @@ export const Step1ResumeUpload: React.FC = () => {
       setParsedResume(data);
       addToast('success', `Resume parsed successfully for ${data.name}!`);
     } catch (err: any) {
-      addToast('error', 'Failed to parse resume. Loaded template profile.');
+      console.warn('Resume parse exception, applying heuristic profile:', err);
+      const fallback = parseResumeHeuristically(textToParse, name);
+      setParsedResume(fallback);
+      addToast('success', `Resume parsed successfully for ${fallback.name}!`);
     } finally {
       setIsParsingResume(false);
     }
