@@ -7,7 +7,7 @@ import {
   SEED_AVAILABILITY,
   DEMO_CANDIDATE_RESUME,
   DEMO_EVALUATION_REPORT
-} from '../data/seedData';
+} from '../data/seedData.js';
 import {
   Company,
   Role,
@@ -17,7 +17,7 @@ import {
   AdminSettings,
   AvailabilitySlot,
   User
-} from '../types';
+} from '../types/index.js';
 
 // Dynamic Gemini SDK client
 export function getGeminiClient(): GoogleGenAI | null {
