@@ -31,14 +31,20 @@ export class VoiceManager {
     this.sessionStartTime = Date.now();
     this.interviewId = interviewId;
 
-    // Check credit status before starting
+    // Check server key configuration & credit status before starting
     try {
       const creditRes = await fetch('/api/deepgram/credit');
       const creditJson = await creditRes.json();
-      if (creditJson.success && creditJson.activeProvider) {
-        this.currentProviderType = creditJson.activeProvider;
+      if (creditJson.success) {
+        if (!creditJson.hasKey || creditJson.activeProvider === 'web-speech') {
+          this.currentProviderType = 'web-speech';
+        } else if (creditJson.activeProvider) {
+          this.currentProviderType = creditJson.activeProvider;
+        }
       }
-    } catch {}
+    } catch {
+      this.currentProviderType = 'web-speech';
+    }
 
     const wrappedEvents: VoiceProviderEvents = {
       ...events,
@@ -48,12 +54,20 @@ export class VoiceManager {
 
         // Stop current provider and failover to next in priority
         if (this.activeProvider) {
-          await this.activeProvider.stop();
+          try {
+            await this.activeProvider.stop();
+          } catch (e) {
+            console.warn('Error stopping failing provider:', e);
+          }
         }
 
         this.currentProviderType = to;
         this.activeProvider = this.createProvider(to);
-        await this.activeProvider.start(config, wrappedEvents);
+        try {
+          await this.activeProvider.start(config, wrappedEvents);
+        } catch (err) {
+          console.error(`Failed to failover to ${to}:`, err);
+        }
       }
     };
 
@@ -64,6 +78,9 @@ export class VoiceManager {
       return this.activeProvider.name;
     } catch (err: any) {
       console.warn(`Failed to start ${this.currentProviderType}, falling back to WebSpeech:`, err);
+      if (this.activeProvider) {
+        try { await this.activeProvider.stop(); } catch {}
+      }
       this.currentProviderType = 'web-speech';
       this.activeProvider = this.createProvider('web-speech');
       await this.activeProvider.start(config, wrappedEvents);
