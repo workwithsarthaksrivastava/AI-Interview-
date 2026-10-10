@@ -23,12 +23,12 @@ export const GlassNavbar: React.FC = () => {
           className="flex items-center gap-3 cursor-pointer group"
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sage-400 to-sage-600 flex items-center justify-center shadow-md shadow-sage-900/40 text-white font-bold text-lg group-hover:scale-105 transition-transform">
-            IQ
+            S
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-base sm:text-lg tracking-tight text-text-primary">
-                Interview<span className="text-sage-400 font-extrabold">IQ</span>
+                Shakchhatkar
               </span>
               <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-sage-500/20 text-mint border border-sage-400/30">
                 Live AI
