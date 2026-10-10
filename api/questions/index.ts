@@ -1,0 +1,8 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { handleGetQuestions, handleCreateQuestion } from '../../src/server-utils';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'POST') return handleCreateQuestion(req, res);
+  return handleGetQuestions(req, res);
+}
