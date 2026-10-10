@@ -2,7 +2,6 @@ import express from 'express';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { WebSocketServer, WebSocket as WsClient } from 'ws';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import {
@@ -51,6 +50,7 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 // Register all API routes
 app.post('/api/resume/parse', handleParseResume);
 app.post('/api/interview/plan', handleInterviewPlan);
+app.get('/api/deepgram/token', handleDeepgramToken);
 app.post('/api/deepgram/token', handleDeepgramToken);
 app.get('/api/deepgram/credit', handleDeepgramCredit);
 app.post('/api/deepgram/log-usage', handleDeepgramLogUsage);
@@ -105,108 +105,9 @@ async function startServer() {
   }
 
   const httpServer = http.createServer(app);
-  const wss = new WebSocketServer({ noServer: true });
-
-  httpServer.on('upgrade', (request, socket, head) => {
-    try {
-      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
-      if (url.pathname === '/api/deepgram/ws') {
-        wss.handleUpgrade(request, socket, head, (clientWs) => {
-          wss.emit('connection', clientWs, request);
-        });
-      }
-    } catch (e) {
-      console.warn('Upgrade error:', e);
-    }
-  });
-
-  wss.on('connection', (clientWs, req) => {
-    const apiKey = process.env.DEEPGRAM_API_KEY;
-    if (!apiKey) {
-      clientWs.send(JSON.stringify({ type: 'Error', message: 'DEEPGRAM_API_KEY is not configured on server' }));
-      clientWs.close(1008, 'Missing Deepgram API key');
-      return;
-    }
-
-    try {
-      const reqUrl = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
-      const language = reqUrl.searchParams.get('language') || 'en';
-      const langParam = language === 'hi' || language === 'Hinglish' ? 'hi' : 'en';
-
-      const dgUrl = `wss://api.deepgram.com/v1/listen?model=nova-3&encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${langParam}`;
-
-      const dgWs = new WsClient(dgUrl, {
-        headers: {
-          Authorization: `Token ${apiKey}`
-        }
-      });
-
-      const messageQueue: Array<{ data: any; isBinary: boolean }> = [];
-
-      dgWs.on('open', () => {
-        if (clientWs.readyState === WsClient.OPEN) {
-          clientWs.send(JSON.stringify({ type: 'Connected', message: 'Deepgram proxy connected' }));
-        }
-        while (messageQueue.length > 0) {
-          const item = messageQueue.shift();
-          if (item && dgWs.readyState === WsClient.OPEN) {
-            dgWs.send(item.data, { binary: item.isBinary });
-          }
-        }
-      });
-
-      dgWs.on('message', (data, isBinary) => {
-        if (clientWs.readyState === WsClient.OPEN) {
-          clientWs.send(data, { binary: isBinary });
-        }
-      });
-
-      dgWs.on('error', (err) => {
-        console.warn('[Deepgram WS Proxy] Deepgram socket error:', err.message);
-        if (clientWs.readyState === WsClient.OPEN) {
-          clientWs.send(JSON.stringify({ type: 'Error', message: err.message }));
-        }
-      });
-
-      dgWs.on('close', (code, reason) => {
-        if (clientWs.readyState === WsClient.OPEN) {
-          const validCode = typeof code === 'number' && code >= 1000 && code <= 4999 ? code : 1000;
-          try {
-            clientWs.close(validCode, reason);
-          } catch {
-            clientWs.close(1000);
-          }
-        }
-      });
-
-      clientWs.on('message', (data, isBinary) => {
-        if (dgWs.readyState === WsClient.OPEN) {
-          dgWs.send(data, { binary: isBinary });
-        } else if (dgWs.readyState === WsClient.CONNECTING) {
-          messageQueue.push({ data, isBinary });
-        }
-      });
-
-      clientWs.on('close', () => {
-        if (dgWs.readyState === WsClient.OPEN) {
-          dgWs.close();
-        }
-      });
-
-      clientWs.on('error', (err) => {
-        console.warn('[Deepgram WS Proxy] Client socket error:', err.message);
-        if (dgWs.readyState === WsClient.OPEN) {
-          dgWs.close();
-        }
-      });
-    } catch (err: any) {
-      console.warn('[Deepgram WS Proxy] Connection initialization error:', err);
-      clientWs.close();
-    }
-  });
 
   httpServer.listen(port, '0.0.0.0', () => {
-    console.log(`[InterviewIQ] Server running on http://0.0.0.0:${port}`);
+    console.log(`[Shakchhatkar] Server running on http://0.0.0.0:${port}`);
   });
 }
 

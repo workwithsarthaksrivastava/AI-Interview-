@@ -70,14 +70,31 @@ export class DeepgramCascadedProvider implements VoiceProvider {
   private async connectWebSocket(): Promise<void> {
     if (!this.isRunning || !this.config) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const lang = this.config.sttLanguage === 'hi' ? 'hi' : 'en';
-
-    // Server-side proxy route: API keys are strictly server-side
-    const wsUrl = `${protocol}//${window.location.host}/api/deepgram/ws?encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${lang}`;
-
     try {
-      this.ws = new WebSocket(wsUrl);
+      if (this.ws) {
+        try {
+          this.ws.close();
+        } catch {}
+        this.ws = null;
+      }
+
+      // Fetch short-lived token before every connection attempt (including auto-reconnects)
+      const tokenRes = await fetch('/api/deepgram/token');
+      if (!tokenRes.ok) {
+        throw new Error(`Failed to obtain Deepgram temporary token: ${tokenRes.status}`);
+      }
+      const tokenData = await tokenRes.json();
+      const token = tokenData.token;
+      if (!token) {
+        throw new Error(tokenData.error || 'No token returned from Deepgram auth grant');
+      }
+
+      const lang = this.config.sttLanguage === 'hi' ? 'hi' : 'en';
+
+      // Open socket directly to wss://api.deepgram.com/v1/listen using subprotocol array ["bearer", token]
+      const wsUrl = `wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true&smart_format=true&endpointing=800&utterance_end_ms=1500&vad_events=true&language=${lang}`;
+
+      this.ws = new WebSocket(wsUrl, ['bearer', token]);
       this.ws.binaryType = 'arraybuffer';
 
       this.ws.onopen = () => {

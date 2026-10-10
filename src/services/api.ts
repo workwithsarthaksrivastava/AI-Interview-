@@ -470,15 +470,10 @@ export const api = {
 
   // Deepgram Scoped Token & Credit Protection
   async getDeepgramToken(): Promise<{
-    hasKey: boolean;
     token?: string;
-    provider: string;
-    auraVoice?: string;
-    sttLanguage?: string;
-    creditRemaining?: number;
-    message?: string;
+    error?: string;
   }> {
-    const res = await fetch('/api/deepgram/token', { method: 'POST' });
+    const res = await fetch('/api/deepgram/token');
     return res.json();
   },
 

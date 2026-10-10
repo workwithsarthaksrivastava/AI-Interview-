@@ -66,32 +66,36 @@ export async function handleDeepgramToken(req: any, res: any) {
   try {
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
-      return res.json({
-        hasKey: false,
-        provider: 'web-speech',
-        message: 'No Deepgram API key found in server environment. Falling back to browser Web Speech API.'
+      return res.status(500).json({
+        error: 'DEEPGRAM_API_KEY is not configured on server',
+        token: ''
       });
     }
 
-    if (db.creditStatus.remainingDollars <= 5) {
-      return res.json({
-        hasKey: true,
-        provider: 'web-speech',
-        creditRemaining: db.creditStatus.remainingDollars,
-        message: 'Credit exhausted on Deepgram. Switched to Web Speech.'
-      });
-    }
-
-    res.json({
-      hasKey: true,
-      token: apiKey,
-      provider: 'deepgram-cascaded',
-      auraVoice: db.settings.deepgramVoice || 'aura-asteria-en',
-      sttLanguage: db.settings.deepgramSttLanguage || 'en',
-      creditRemaining: db.creditStatus.remainingDollars
+    const grantResponse = await fetch('https://api.deepgram.com/v1/auth/grant', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ttl_seconds: 60 })
     });
+
+    if (!grantResponse.ok) {
+      const errText = await grantResponse.text();
+      console.warn('[Deepgram Auth Grant] Failed:', grantResponse.status, errText);
+      return res.status(grantResponse.status).json({
+        error: `Deepgram auth grant failed: ${errText}`,
+        token: ''
+      });
+    }
+
+    const data: any = await grantResponse.json();
+    const accessToken = data.access_token || data.token || data.key || '';
+    return res.json({ token: accessToken });
   } catch (err: any) {
-    res.json({ success: false, error: err.message, provider: 'web-speech' });
+    console.warn('[Deepgram Token] Error:', err);
+    return res.status(500).json({ error: err.message, token: '' });
   }
 }
 

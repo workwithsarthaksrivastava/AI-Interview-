@@ -23,11 +23,11 @@ export class DeepgramAgentProvider implements VoiceProvider {
 
     // 1. Fetch token and credentials
     try {
-      const tokenRes = await fetch('/api/deepgram/token', { method: 'POST' });
+      const tokenRes = await fetch('/api/deepgram/token');
       const tokenData = await tokenRes.json();
 
-      if (!tokenData.hasKey || tokenData.provider === 'web-speech') {
-        events.onProviderFallback?.('deepgram-agent', 'deepgram-cascaded', tokenData.message || 'Deepgram credentials missing or credit low.');
+      if (!tokenData.token) {
+        events.onProviderFallback?.('deepgram-agent', 'deepgram-cascaded', tokenData.error || 'Deepgram credentials missing or credit low.');
         throw new Error('DEEPGRAM_FALLBACK_TRIGGERED');
       }
 
