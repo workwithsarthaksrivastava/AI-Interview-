@@ -5,6 +5,7 @@ import { voiceService } from '../../services/voice/VoiceService';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { AudioWaveform } from '../common/AudioWaveform';
+import { VideoFeed } from '../common/VideoFeed';
 import {
   Mic,
   MicOff,
@@ -177,13 +178,18 @@ export const Step5LobbyCalibration: React.FC = () => {
       addToast('info', 'Camera turned off.');
     } else {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-          }
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'user'
+            }
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
         setVideoStream(stream);
         setCameraPreviewEnabled(true);
         addToast('success', 'Camera connected and ready.');
@@ -194,13 +200,17 @@ export const Step5LobbyCalibration: React.FC = () => {
     }
   };
 
-  // Ensure camera stream is assigned to video element when it mounts
+  // Clean up media streams on unmount to prevent camera locking
   useEffect(() => {
-    if (videoRef.current && videoStream && cameraPreviewEnabled) {
-      videoRef.current.srcObject = videoStream;
-      videoRef.current.play().catch((err) => console.warn('[Video] Play error:', err));
-    }
-  }, [videoStream, cameraPreviewEnabled]);
+    return () => {
+      if (videoStream) {
+        videoStream.getTracks().forEach((t) => t.stop());
+      }
+      if (micStream) {
+        micStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [videoStream, micStream]);
 
   // Play audio helper for base64 audio
   const playAudioBase64 = (base64: string): Promise<void> => {
@@ -508,7 +518,13 @@ export const Step5LobbyCalibration: React.FC = () => {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
     } else {
-      // Enter full-screen live room!
+      // Release lobby camera & mic hardware before entering live room
+      if (videoStream) {
+        videoStream.getTracks().forEach((t) => t.stop());
+      }
+      if (micStream) {
+        micStream.getTracks().forEach((t) => t.stop());
+      }
       setCurrentView('interview');
     }
   }, [countdown]);
@@ -826,7 +842,7 @@ export const Step5LobbyCalibration: React.FC = () => {
 
         {cameraPreviewEnabled && (
           <div className="mt-3 relative rounded-2xl overflow-hidden bg-black aspect-video max-w-sm mx-auto border border-sage-300/20">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover -scale-x-100 bg-black" />
+            <VideoFeed stream={videoStream} mirrored={true} />
             <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/60 text-[10px] text-mint">
               Live Preview
             </div>

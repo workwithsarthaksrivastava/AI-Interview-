@@ -15,10 +15,17 @@ export class WebSpeechProvider implements VoiceProvider {
   private analyser: AnalyserNode | null = null;
   private animId: number = 0;
 
+  private isMicMuted: boolean = false;
+
+  setMicMuted(muted: boolean): void {
+    this.isMicMuted = muted;
+  }
+
   async start(config: VoiceSessionConfig, events: VoiceProviderEvents): Promise<void> {
     this.config = config;
     this.events = events;
     this.isRunning = true;
+    this.isMicMuted = false;
 
     // Start Audio Level monitoring
     try {
@@ -39,7 +46,11 @@ export class WebSpeechProvider implements VoiceProvider {
         let sum = 0;
         for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
         const avg = Math.min(100, Math.round((sum / bufferLength) * 1.5));
-        this.events?.onAudioLevel(avg);
+        if (!this.isMicMuted) {
+          this.events?.onAudioLevel(avg);
+        } else {
+          this.events?.onAudioLevel(0);
+        }
         this.animId = requestAnimationFrame(checkVolume);
       };
       checkVolume();
@@ -62,17 +73,22 @@ export class WebSpeechProvider implements VoiceProvider {
     recognition.lang = config.sttLanguage === 'hi' ? 'hi-IN' : 'en-US';
 
     recognition.onresult = (event: any) => {
+      if (this.isMicMuted) return;
+
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const text = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          // Candidate cut in -> Barge-in
-          this.interrupt();
-          this.events?.onTranscript({
-            speaker: 'candidate',
-            text: text.trim(),
-            isFinal: true
-          });
+          const trimmed = text.trim();
+          if (trimmed) {
+            this.interrupt();
+            this.events?.onTranscript({
+              speaker: 'candidate',
+              text: trimmed,
+              isFinal: true,
+              isSpeechFinal: true
+            });
+          }
         } else {
           interim += text;
           this.interrupt();
@@ -80,23 +96,28 @@ export class WebSpeechProvider implements VoiceProvider {
           this.events?.onTranscript({
             speaker: 'candidate',
             text: interim,
-            isFinal: false
+            isFinal: false,
+            isSpeechFinal: false
           });
         }
       }
     };
 
     recognition.onerror = (e: any) => {
-      if (e.error !== 'no-speech') {
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
         this.events?.onError(`Speech recognition notice: ${e.error}`);
       }
     };
 
     recognition.onend = () => {
       if (this.isRunning) {
-        try {
-          recognition.start();
-        } catch {}
+        setTimeout(() => {
+          if (this.isRunning && this.recognition) {
+            try {
+              this.recognition.start();
+            } catch {}
+          }
+        }, 120);
       }
     };
 
@@ -134,7 +155,8 @@ export class WebSpeechProvider implements VoiceProvider {
     this.events?.onTranscript({
       speaker: 'candidate',
       text,
-      isFinal: true
+      isFinal: true,
+      isSpeechFinal: true
     });
   }
 

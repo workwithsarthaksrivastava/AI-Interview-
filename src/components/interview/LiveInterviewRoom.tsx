@@ -8,6 +8,7 @@ import { WhiteboardPanel } from './WhiteboardPanel';
 import { GlassButton } from '../common/GlassButton';
 import { QuestionEvaluation, TranscriptTurn } from '../../types';
 import { saveReportToFirestore } from '../../services/firestoreData';
+import { VideoFeed } from '../common/VideoFeed';
 import {
   Mic,
   MicOff,
@@ -26,7 +27,11 @@ import {
   Zap,
   Video,
   VideoOff,
-  User
+  User,
+  Maximize2,
+  Minimize2,
+  LayoutGrid,
+  Monitor
 } from 'lucide-react';
 
 export type LiveEngineState =
@@ -99,8 +104,10 @@ export const LiveInterviewRoom: React.FC = () => {
 
   // Transcripts & Buffering
   const [interimTranscript, setInterimTranscript] = useState<string>('');
+  const interimTranscriptRef = useRef<string>('');
   const bufferedCandidateTextRef = useRef<string>('');
   const speechDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const interimSilenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Single-flight guard & AbortController
   const isInFlightLlmRef = useRef<boolean>(false);
@@ -149,33 +156,44 @@ export const LiveInterviewRoom: React.FC = () => {
   // Candidate Live Video Feed State
   const [isCameraActive, setIsCameraActive] = useState<boolean>(cameraPreviewEnabled);
   const [candidateStream, setCandidateStream] = useState<MediaStream | null>(null);
-  const candidateVideoRef = useRef<HTMLVideoElement | null>(null);
+  const candidateStreamRef = useRef<MediaStream | null>(null);
+  const [viewLayout, setViewLayout] = useState<'video-grid' | 'orb-focus'>('video-grid');
+  const [isPipExpanded, setIsPipExpanded] = useState<boolean>(false);
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
-        }
-      });
+      if (candidateStreamRef.current) {
+        candidateStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          }
+        });
+      } catch {
+        // Fallback to basic constraint
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+      candidateStreamRef.current = stream;
       setCandidateStream(stream);
       setIsCameraActive(true);
-      if (candidateVideoRef.current) {
-        candidateVideoRef.current.srcObject = stream;
-        candidateVideoRef.current.play().catch(console.warn);
-      }
     } catch (e: any) {
       console.warn('Live camera access error:', e);
       setIsCameraActive(false);
-      addToast('warning', 'Camera not detected or permission denied. Please allow camera access in your browser.');
+      setCandidateStream(null);
+      candidateStreamRef.current = null;
+      addToast('warning', 'Camera not detected or permission denied. Please allow camera permissions.');
     }
   };
 
   const stopCamera = () => {
-    if (candidateStream) {
-      candidateStream.getTracks().forEach((track) => track.stop());
+    if (candidateStreamRef.current) {
+      candidateStreamRef.current.getTracks().forEach((track) => track.stop());
+      candidateStreamRef.current = null;
     }
     setCandidateStream(null);
     setIsCameraActive(false);
@@ -187,7 +205,7 @@ export const LiveInterviewRoom: React.FC = () => {
       addToast('info', 'Camera turned off.');
     } else {
       startCamera();
-      addToast('success', 'Camera turned on.');
+      addToast('success', 'Camera connected and ready.');
     }
   };
 
@@ -197,19 +215,11 @@ export const LiveInterviewRoom: React.FC = () => {
       startCamera();
     }
     return () => {
-      if (candidateStream) {
-        candidateStream.getTracks().forEach((t) => t.stop());
+      if (candidateStreamRef.current) {
+        candidateStreamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
   }, []);
-
-  // Ensure srcObject is updated whenever candidateStream or isCameraActive changes
-  useEffect(() => {
-    if (candidateVideoRef.current && candidateStream && isCameraActive) {
-      candidateVideoRef.current.srcObject = candidateStream;
-      candidateVideoRef.current.play().catch((err) => console.warn('[Video] Play error:', err));
-    }
-  }, [candidateStream, isCameraActive]);
 
   // Helper to transition state cleanly and sync orb + store
   const transitionEngineState = useCallback((newState: LiveEngineState) => {
@@ -572,8 +582,31 @@ export const LiveInterviewRoom: React.FC = () => {
   executeAiTurnRef.current = executeAiTurn;
 
   // -------------------------------------------------------------
-  // TURN-TAKING SPEECH FINAL & DEBOUNCE LOGIC
+  // TURN-TAKING SPEECH FINAL & IMMEDIATE SUBMISSION LOGIC
   // -------------------------------------------------------------
+  const submitCandidateAnswerNow = useCallback(() => {
+    if (speechDebounceTimerRef.current) {
+      clearTimeout(speechDebounceTimerRef.current);
+      speechDebounceTimerRef.current = null;
+    }
+    if (interimSilenceTimerRef.current) {
+      clearTimeout(interimSilenceTimerRef.current);
+      interimSilenceTimerRef.current = null;
+    }
+
+    const answer = (bufferedCandidateTextRef.current.trim() || interimTranscriptRef.current.trim()).trim();
+    if (!answer) {
+      addToast('info', 'Please speak or type your answer before submitting.');
+      return;
+    }
+
+    bufferedCandidateTextRef.current = '';
+    setInterimTranscript('');
+    interimTranscriptRef.current = '';
+    setTextInput('');
+    executeAiTurnRef.current(answer);
+  }, [addToast]);
+
   const scheduleFinalSpeechTrigger = useCallback(() => {
     if (speechDebounceTimerRef.current) {
       clearTimeout(speechDebounceTimerRef.current);
@@ -581,7 +614,7 @@ export const LiveInterviewRoom: React.FC = () => {
 
     // 1.2s silence debounce
     speechDebounceTimerRef.current = setTimeout(() => {
-      const buffered = bufferedCandidateTextRef.current.trim();
+      const buffered = (bufferedCandidateTextRef.current.trim() || interimTranscriptRef.current.trim()).trim();
       if (!buffered) return;
 
       // Filter filler-only speech
@@ -590,9 +623,11 @@ export const LiveInterviewRoom: React.FC = () => {
         (w) => !['um', 'uh', 'like', 'hmm', 'er', 'ah', 'basically', 'actually', 'you know', 'matlab', 'so yeah'].includes(w)
       );
 
-      if (nonFillers.length < 2) {
-        // Less than 2 non-filler words: ignore and return to LISTENING
+      // Only discard if candidate spoke exclusively filler murmurings (e.g. "um... uh")
+      if (nonFillers.length === 0 && words.length > 0) {
         bufferedCandidateTextRef.current = '';
+        setInterimTranscript('');
+        interimTranscriptRef.current = '';
         if (engineStateRef.current === 'USER_SPEAKING') {
           transitionEngineState('LISTENING');
         }
@@ -602,6 +637,7 @@ export const LiveInterviewRoom: React.FC = () => {
       // Valid candidate response!
       bufferedCandidateTextRef.current = '';
       setInterimTranscript('');
+      interimTranscriptRef.current = '';
       executeAiTurnRef.current(buffered);
     }, 1200);
   }, [transitionEngineState]);
@@ -637,9 +673,9 @@ export const LiveInterviewRoom: React.FC = () => {
             setSilenceSeconds(0);
 
             if (event.isFinal) {
-              // Buffer is_final segment only; NEVER call LLM on interim results!
               bufferedCandidateTextRef.current += (bufferedCandidateTextRef.current ? ' ' : '') + event.text;
               setInterimTranscript('');
+              interimTranscriptRef.current = '';
 
               if (engineStateRef.current === 'AI_SPEAKING') {
                 handleBargeIn();
@@ -647,17 +683,32 @@ export const LiveInterviewRoom: React.FC = () => {
                 transitionEngineState('USER_SPEAKING');
               }
 
-              if (event.isSpeechFinal) {
-                scheduleFinalSpeechTrigger();
-              }
+              // Always schedule final speech trigger when a final segment arrives
+              scheduleFinalSpeechTrigger();
             } else {
-              // Interim text: show live subtitles only, never call LLM
+              // Interim text: update live subtitles and fallback timer
               setInterimTranscript(event.text);
+              interimTranscriptRef.current = event.text;
+
               if (engineStateRef.current === 'AI_SPEAKING') {
                 handleBargeIn();
               } else if (engineStateRef.current === 'LISTENING') {
                 transitionEngineState('USER_SPEAKING');
               }
+
+              // Fallback timer for continuous interim speech: if speaker pauses for 2.2s without isFinal
+              if (interimSilenceTimerRef.current) {
+                clearTimeout(interimSilenceTimerRef.current);
+              }
+              interimSilenceTimerRef.current = setTimeout(() => {
+                const text = (bufferedCandidateTextRef.current.trim() || interimTranscriptRef.current.trim()).trim();
+                if (text && engineStateRef.current === 'USER_SPEAKING') {
+                  bufferedCandidateTextRef.current = '';
+                  setInterimTranscript('');
+                  interimTranscriptRef.current = '';
+                  executeAiTurnRef.current(text);
+                }
+              }, 2200);
             }
           },
           onSpeechStarted: () => {
@@ -1058,52 +1109,91 @@ export const LiveInterviewRoom: React.FC = () => {
           </div>
         )}
 
-        {/* Live Interim Subtitle Pill under Orb */}
-        {(interimTranscript || (engineState === 'AI_SPEAKING' && transcript.length > 0)) && (
+        {/* Live Candidate Speaking Subtitle & Instant Submit Button */}
+        {(interimTranscript || engineState === 'USER_SPEAKING') && (
+          <div className="mt-4 flex flex-col items-center gap-2.5 animate-in fade-in zoom-in-95">
+            <div className="max-w-xl text-center px-4 py-2 rounded-2xl glass-2 border border-mint/30 shadow-md">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <span className="w-2 h-2 rounded-full bg-mint animate-ping" />
+                <span className="text-[10px] font-semibold text-mint uppercase tracking-wider">Live Voice Transcription</span>
+              </div>
+              <p className="text-xs text-text-primary italic">
+                "{interimTranscript || 'Listening to your answer...'}"
+              </p>
+            </div>
+
+            <button
+              onClick={submitCandidateAnswerNow}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-mint to-teal-400 hover:from-mint-light hover:to-teal-300 text-sage-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-mint/25 cursor-pointer active:scale-95 transition-all"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>I'm Done Speaking · Submit Response</span>
+            </button>
+          </div>
+        )}
+
+        {/* AI Speaking Subtitle */}
+        {engineState === 'AI_SPEAKING' && transcript.length > 0 && !interimTranscript && (
           <div className="mt-5 max-w-xl text-center px-4 py-2 rounded-2xl glass-2 border border-sage-300/20 shadow-md animate-in fade-in duration-150">
             <p className="text-xs text-text-primary italic">
-              "{interimTranscript || transcript[transcript.length - 1]?.text}"
+              "{transcript[transcript.length - 1]?.text}"
             </p>
           </div>
         )}
       </main>
 
       {/* Floating Candidate Picture-in-Picture Webcam Feed */}
-      <div className="fixed bottom-24 right-4 sm:right-8 z-30 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden glass-3 border border-sage-300/30 shadow-2xl backdrop-blur-xl group transition-all">
-        {isCameraActive ? (
+      <div
+        className={`fixed z-30 aspect-video rounded-2xl overflow-hidden glass-3 border border-sage-300/30 shadow-2xl backdrop-blur-xl group transition-all duration-300 ${
+          isPipExpanded
+            ? 'bottom-24 right-4 sm:right-8 w-64 sm:w-80 md:w-96'
+            : 'bottom-24 right-4 sm:right-8 w-40 sm:w-52'
+        }`}
+      >
+        {isCameraActive && candidateStream ? (
           <div className="relative w-full h-full bg-black">
-            <video
-              ref={candidateVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover -scale-x-100"
+            <VideoFeed
+              stream={candidateStream}
+              mirrored={true}
+              muted={true}
+              className="w-full h-full object-cover"
             />
-            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[9px] font-semibold text-mint flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
-              You
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] font-semibold text-mint flex items-center gap-1.5 pointer-events-none">
+              <span className="w-2 h-2 rounded-full bg-mint animate-pulse" />
+              <span>Live Video</span>
             </div>
-            <button
-              onClick={toggleLiveCamera}
-              className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-1.5 right-1.5 p-1 rounded-lg bg-black/70 hover:bg-black text-white text-[10px] cursor-pointer"
-              title="Turn off camera"
-            >
-              <VideoOff className="w-3 h-3 text-red-400" />
-            </button>
+
+            {/* Controls overlay on hover */}
+            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => setIsPipExpanded(!isPipExpanded)}
+                className="p-1.5 rounded-lg bg-black/70 hover:bg-black text-white text-[10px] cursor-pointer transition-colors"
+                title={isPipExpanded ? 'Minimize video preview' : 'Expand video preview'}
+              >
+                {isPipExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={toggleLiveCamera}
+                className="p-1.5 rounded-lg bg-black/70 hover:bg-black text-red-400 text-[10px] cursor-pointer transition-colors"
+                title="Turn off camera"
+              >
+                <VideoOff className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="w-full h-full bg-sage-950/80 flex flex-col items-center justify-center gap-1.5 p-2 text-center">
-            <div className="w-7 h-7 rounded-full bg-sage-500/20 text-text-muted flex items-center justify-center">
+          <div className="w-full h-full bg-sage-950/80 flex flex-col items-center justify-center gap-1.5 p-3 text-center">
+            <div className="w-8 h-8 rounded-full bg-sage-500/20 text-text-muted flex items-center justify-center">
               <User className="w-4 h-4" />
             </div>
             <span className="text-[10px] text-text-muted truncate max-w-full px-1">
               {currentUser.name || 'Candidate'}
             </span>
             <button
-              onClick={toggleLiveCamera}
-              className="text-[9px] text-mint hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
+              onClick={startCamera}
+              className="px-2.5 py-1 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
             >
-              <Video className="w-2.5 h-2.5" /> Start Video
+              <Video className="w-3 h-3" /> Start Camera
             </button>
           </div>
         )}

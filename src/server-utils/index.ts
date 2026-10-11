@@ -106,7 +106,7 @@ export async function handleDeepgramCredit(req: any, res: any) {
     success: true,
     credit: db.creditStatus,
     hasKey,
-    activeProvider: hasKey ? (db.settings.voiceProvider || 'deepgram-cascaded') : 'deepgram-cascaded'
+    activeProvider: hasKey ? (db.settings.voiceProvider || 'deepgram-cascaded') : 'web-speech'
   });
 }
 

@@ -81,12 +81,16 @@ export class DeepgramCascadedProvider implements VoiceProvider {
       // Fetch short-lived token before every connection attempt (including auto-reconnects)
       const tokenRes = await fetch('/api/deepgram/token');
       if (!tokenRes.ok) {
-        throw new Error(`Failed to obtain Deepgram temporary token: ${tokenRes.status}`);
+        console.warn(`[Deepgram WS] Token endpoint error (${tokenRes.status}). Failing over to Web Speech.`);
+        this.events?.onProviderFallback?.('deepgram-cascaded', 'web-speech', 'Deepgram token unavailable');
+        return;
       }
       const tokenData = await tokenRes.json();
       const token = tokenData.token;
       if (!token) {
-        throw new Error(tokenData.error || 'No token returned from Deepgram auth grant');
+        console.warn('[Deepgram WS] No token returned. Failing over to Web Speech.');
+        this.events?.onProviderFallback?.('deepgram-cascaded', 'web-speech', 'Deepgram token not configured');
+        return;
       }
 
       const lang = this.config.sttLanguage === 'hi' ? 'hi' : 'en';
@@ -146,6 +150,11 @@ export class DeepgramCascadedProvider implements VoiceProvider {
 
       this.ws.onclose = (event) => {
         if (!this.isRunning) return;
+        if (event.code === 1008 || event.code === 4001 || event.code === 4003 || event.code === 4004) {
+          console.warn(`[Deepgram WS] Unauthorized / closed (${event.code}). Failing over to Web Speech.`);
+          this.events?.onProviderFallback?.('deepgram-cascaded', 'web-speech', `Deepgram close code ${event.code}`);
+          return;
+        }
         console.warn(`[Deepgram WS] Connection closed (code: ${event.code}). Auto-reconnecting...`);
         this.scheduleReconnect();
       };
@@ -158,12 +167,13 @@ export class DeepgramCascadedProvider implements VoiceProvider {
   private scheduleReconnect() {
     if (!this.isRunning) return;
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.events?.onError('Lost connection to live voice server. Please check your network and retry.');
+      console.warn('[Deepgram WS] Max reconnect attempts reached. Switching to Web Speech.');
+      this.events?.onProviderFallback?.('deepgram-cascaded', 'web-speech', 'Deepgram connection retries exhausted');
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(6000, 1000 * Math.pow(1.5, this.reconnectAttempts));
+    const delay = Math.min(4000, 1000 * Math.pow(1.5, this.reconnectAttempts));
     console.log(`[Deepgram WS] Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
