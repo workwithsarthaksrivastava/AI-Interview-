@@ -325,6 +325,20 @@ export async function handleUpdateCompany(req: any, res: any, companyId?: string
   }
 }
 
+export async function handleDeleteCompany(req: any, res: any, companyId?: string) {
+  setCors(res);
+  const id = companyId || req.params?.id || req.query?.id;
+  const index = db.companies.findIndex((c) => c.id === id);
+  if (index !== -1) {
+    const deletedName = db.companies[index].name;
+    db.companies.splice(index, 1);
+    logAudit('COMPANY_DELETED', `Deleted company ${deletedName} (${id})`);
+    res.json({ success: true, message: `Company ${deletedName} removed` });
+  } else {
+    res.status(404).json({ error: 'Company not found' });
+  }
+}
+
 // Roles CRUD
 export async function handleGetRoles(req: any, res: any) {
   setCors(res);
@@ -347,6 +361,34 @@ export async function handleCreateRole(req: any, res: any) {
   db.roles.push(newRole);
   logAudit('ROLE_CREATED', `Created role ${newRole.title}`);
   res.json({ success: true, role: newRole });
+}
+
+export async function handleUpdateRole(req: any, res: any, roleId?: string) {
+  setCors(res);
+  const id = roleId || req.params?.id || req.query?.id;
+  const body = parseBody(req);
+  const index = db.roles.findIndex((r) => r.id === id);
+  if (index !== -1) {
+    db.roles[index] = { ...db.roles[index], ...body };
+    logAudit('ROLE_UPDATED', `Updated role ${db.roles[index].title}`);
+    res.json({ success: true, role: db.roles[index] });
+  } else {
+    res.status(404).json({ error: 'Role not found' });
+  }
+}
+
+export async function handleDeleteRole(req: any, res: any, roleId?: string) {
+  setCors(res);
+  const id = roleId || req.params?.id || req.query?.id;
+  const index = db.roles.findIndex((r) => r.id === id);
+  if (index !== -1) {
+    const deletedTitle = db.roles[index].title;
+    db.roles.splice(index, 1);
+    logAudit('ROLE_DELETED', `Deleted role ${deletedTitle} (${id})`);
+    res.json({ success: true, message: `Role ${deletedTitle} removed` });
+  } else {
+    res.status(404).json({ error: 'Role not found' });
+  }
 }
 
 // Questions CRUD
@@ -630,10 +672,17 @@ export async function dispatchApiRequest(req: any, res: any) {
   }
   if (pathname.startsWith('/companies/')) {
     const id = pathname.replace('/companies/', '');
+    if (method === 'DELETE') return handleDeleteCompany(req, res, id);
     return handleUpdateCompany(req, res, id);
   }
   if (pathname === '/roles') {
     if (method === 'POST') return handleCreateRole(req, res);
+    return handleGetRoles(req, res);
+  }
+  if (pathname.startsWith('/roles/')) {
+    const id = pathname.replace('/roles/', '');
+    if (method === 'DELETE') return handleDeleteRole(req, res, id);
+    if (method === 'PUT' || method === 'PATCH') return handleUpdateRole(req, res, id);
     return handleGetRoles(req, res);
   }
   if (pathname === '/questions') {

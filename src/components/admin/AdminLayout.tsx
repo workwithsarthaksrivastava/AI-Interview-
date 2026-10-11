@@ -1,24 +1,34 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AdminDashboard } from './AdminDashboard';
+import { AdminCompanies } from './AdminCompanies';
+import { AdminRoles } from './AdminRoles';
 import { AdminQuestions } from './AdminQuestions';
 import { AdminAISettings } from './AdminAISettings';
 import { AdminDocs } from './AdminDocs';
+import { AdminAccessDenied } from './AdminAccessDenied';
+import { isUserAdmin } from '../../utils/authGuards';
 import {
   LayoutDashboard,
+  Building2,
+  Briefcase,
   HelpCircle,
   Sliders,
   FileCode,
-  ArrowLeft,
-  Building2,
-  Users
+  ArrowLeft
 } from 'lucide-react';
 
 export const AdminLayout: React.FC = () => {
-  const { adminTab, setAdminTab, setCurrentView } = useAppStore();
+  const { adminTab, setAdminTab, setCurrentView, currentUser } = useAppStore();
+
+  if (!isUserAdmin(currentUser.email)) {
+    return <AdminAccessDenied />;
+  }
 
   const navItems = [
     { id: 'dashboard', label: 'Overview & KPIs', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'companies', label: 'Companies', icon: <Building2 className="w-4 h-4" /> },
+    { id: 'roles', label: 'Job Roles', icon: <Briefcase className="w-4 h-4" /> },
     { id: 'questions', label: 'Question Bank', icon: <HelpCircle className="w-4 h-4" /> },
     { id: 'ai-settings', label: 'AI Settings & Sandbox', icon: <Sliders className="w-4 h-4" /> },
     { id: 'docs', label: 'Architecture & Docs', icon: <FileCode className="w-4 h-4" /> }
@@ -38,9 +48,9 @@ export const AdminLayout: React.FC = () => {
           </button>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-text-primary tracking-tight">
-              InterviewIQ Admin Console
+              Shakchhatkar Admin Console
             </h1>
-            <p className="text-xs text-text-muted">Master Control · Role & Question Governance · Real-Time Analytics</p>
+            <p className="text-xs text-text-muted">Master Control · Company & Role Governance · Real-Time Analytics</p>
           </div>
         </div>
 
@@ -66,6 +76,8 @@ export const AdminLayout: React.FC = () => {
       {/* Main Tab Content */}
       <div>
         {adminTab === 'dashboard' && <AdminDashboard />}
+        {adminTab === 'companies' && <AdminCompanies />}
+        {adminTab === 'roles' && <AdminRoles />}
         {adminTab === 'questions' && <AdminQuestions />}
         {adminTab === 'ai-settings' && <AdminAISettings />}
         {adminTab === 'docs' && <AdminDocs />}

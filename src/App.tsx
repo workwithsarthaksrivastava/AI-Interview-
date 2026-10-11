@@ -9,9 +9,12 @@ import { EvaluatingScreen } from './components/report/EvaluatingScreen';
 import { EvaluationReportView } from './components/report/EvaluationReportView';
 import { CandidateDashboard } from './components/candidate/CandidateDashboard';
 import { AdminLayout } from './components/admin/AdminLayout';
+import { AdminAccessDenied } from './components/admin/AdminAccessDenied';
+import { LoginPage } from './components/auth/LoginPage';
+import { isUserAdmin } from './utils/authGuards';
 
 export default function App() {
-  const { currentView } = useAppStore();
+  const { currentView, currentUser } = useAppStore();
 
   return (
     <div className="relative min-h-screen text-text-primary overflow-x-hidden selection:bg-sage-500/30 selection:text-sage-100 flex flex-col justify-between">
@@ -27,29 +30,30 @@ export default function App() {
         <div className="absolute -bottom-32 left-1/4 w-[480px] h-[480px] rounded-full bg-gold/10 blur-[110px] animate-blob-3" />
       </div>
 
-      {/* Glass Top Navigation (hidden during live call for full immersion) */}
-      {currentView !== 'interview' && currentView !== 'evaluating' && <GlassNavbar />}
+      {/* Glass Top Navigation (hidden during live call or initial login for full focus) */}
+      {currentView !== 'interview' && currentView !== 'evaluating' && currentView !== 'login' && <GlassNavbar />}
 
       {/* Main View Router */}
       <main className="relative z-10 flex-1 w-full">
+        {currentView === 'login' && <LoginPage />}
         {currentView === 'landing' && <LandingPage />}
         {(currentView === 'wizard' || currentView === 'lobby') && <WizardContainer />}
         {currentView === 'interview' && <LiveInterviewRoom />}
         {currentView === 'evaluating' && <EvaluatingScreen />}
         {currentView === 'report' && <EvaluationReportView />}
         {currentView === 'candidate-dashboard' && <CandidateDashboard />}
-        {currentView === 'admin' && <AdminLayout />}
+        {currentView === 'admin' && (isUserAdmin(currentUser.email) ? <AdminLayout /> : <AdminAccessDenied />)}
       </main>
 
       {/* Global Toast Container */}
       <ToastContainer />
 
-      {/* Subtle Footer (hidden in interview and evaluating modes) */}
-      {currentView !== 'interview' && currentView !== 'evaluating' && (
+      {/* Subtle Footer (hidden in interview, evaluating and login modes) */}
+      {currentView !== 'interview' && currentView !== 'evaluating' && currentView !== 'login' && (
         <footer className="relative z-10 py-6 border-t border-sage-300/10 text-center text-xs text-text-muted select-none">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <div>
-              <strong>InterviewIQ</strong> · AI Mock Interview Platform with Live Voice & Interruption
+              <strong>Shakchhatkar</strong> · AI Mock Interview Platform with Live Voice & Interruption
             </div>
             <div className="flex items-center gap-4 text-[11px]">
               <span>Powered by Deepgram Voice Architecture & Gemini Flash</span>

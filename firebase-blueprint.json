@@ -1,0 +1,213 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated candidate or admin user profile.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Firebase Auth UID.",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address.",
+          "format": "email",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Full name of candidate.",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar URL.",
+          "maxLength": 1000
+        },
+        "role": {
+          "type": "string",
+          "description": "User role: candidate or admin.",
+          "enum": ["candidate", "admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of user creation.",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "InterviewSession": {
+      "title": "InterviewSession",
+      "description": "Mock interview session record.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Interview unique identifier.",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Candidate user UID.",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userName": {
+          "type": "string",
+          "description": "Candidate display name.",
+          "maxLength": 120
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Candidate email.",
+          "format": "email",
+          "maxLength": 256
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Target company ID.",
+          "maxLength": 64
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Target company name.",
+          "maxLength": 120
+        },
+        "roleId": {
+          "type": "string",
+          "description": "Target job role ID.",
+          "maxLength": 64
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Target job role title.",
+          "maxLength": 120
+        },
+        "type": {
+          "type": "string",
+          "description": "Interview round type.",
+          "enum": ["Technical", "System Design", "Behavioral", "Coding", "Mixed"]
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Interview difficulty level.",
+          "enum": ["Junior", "Mid", "Senior", "Staff"]
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Target duration in minutes."
+        },
+        "language": {
+          "type": "string",
+          "description": "Interview language.",
+          "maxLength": 32
+        },
+        "status": {
+          "type": "string",
+          "description": "Session progress status.",
+          "enum": ["scheduled", "in-progress", "completed", "cancelled"]
+        },
+        "scheduledAt": {
+          "type": "string",
+          "description": "ISO timestamp for scheduled interview.",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp.",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "userId", "companyId", "roleId", "type", "difficulty", "status"]
+    },
+    "EvaluationReport": {
+      "title": "EvaluationReport",
+      "description": "Comprehensive interview evaluation report.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Report ID.",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "interviewId": {
+          "type": "string",
+          "description": "Associated interview session ID.",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner candidate UID.",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "candidateName": {
+          "type": "string",
+          "description": "Candidate name.",
+          "maxLength": 120
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Interview company name.",
+          "maxLength": 120
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Interview role title.",
+          "maxLength": 120
+        },
+        "overallScore": {
+          "type": "number",
+          "description": "Overall score out of 100."
+        },
+        "gradeBand": {
+          "type": "string",
+          "description": "Grade band.",
+          "enum": ["Needs Work", "Developing", "Good", "Strong", "Outstanding"]
+        },
+        "hireReadinessVerdict": {
+          "type": "string",
+          "description": "Hiring verdict.",
+          "enum": ["Strong Hire", "Lean Hire", "Borderline / Follow-up Needed", "Do Not Hire"]
+        },
+        "executiveSummary": {
+          "type": "string",
+          "description": "Summary feedback overview.",
+          "maxLength": 4000
+        },
+        "shareToken": {
+          "type": "string",
+          "description": "Public share token.",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp.",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "interviewId", "userId", "overallScore", "gradeBand", "hireReadinessVerdict"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Individual candidate user profile documents."
+    },
+    "/interviews/{interviewId}": {
+      "schema": "InterviewSession",
+      "description": "Interview session records owned by candidates."
+    },
+    "/reports/{reportId}": {
+      "schema": "EvaluationReport",
+      "description": "Evaluation scorecards generated after interviews."
+    }
+  }
+}

@@ -333,6 +333,14 @@ export const api = {
     return json.company;
   },
 
+  async deleteCompany(id: string): Promise<boolean> {
+    const res = await fetch(`/api/companies/${id}`, {
+      method: 'DELETE'
+    });
+    const json = await res.json();
+    return json.success === true;
+  },
+
   // Roles
   async getRoles(companyId?: string): Promise<Role[]> {
     const url = companyId ? `/api/roles?companyId=${companyId}` : '/api/roles';
@@ -349,6 +357,24 @@ export const api = {
     });
     const json = await res.json();
     return json.role;
+  },
+
+  async updateRole(id: string, updates: Partial<Role>): Promise<Role> {
+    const res = await fetch(`/api/roles/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    const json = await res.json();
+    return json.role;
+  },
+
+  async deleteRole(id: string): Promise<boolean> {
+    const res = await fetch(`/api/roles/${id}`, {
+      method: 'DELETE'
+    });
+    const json = await res.json();
+    return json.success === true;
   },
 
   // Question Bank

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { api } from '../../services/api';
+import { fetchUserReportsFromFirestore } from '../../services/firestoreData';
 import { EvaluationReport } from '../../types';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
@@ -23,14 +24,27 @@ export const CandidateDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .getReports()
-      .then((data) => {
+    const loadReports = async () => {
+      try {
+        if (currentUser?.uid) {
+          const fsReports = await fetchUserReportsFromFirestore(currentUser.uid);
+          if (fsReports && fsReports.length > 0) {
+            setReports(fsReports);
+            setLoading(false);
+            return;
+          }
+        }
+        const data = await api.getReports();
         setReports(data);
+      } catch {
+        const data = await api.getReports();
+        setReports(data);
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+      }
+    };
+    loadReports();
+  }, [currentUser?.uid]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-8 text-left">
@@ -63,8 +77,10 @@ export const CandidateDashboard: React.FC = () => {
           </div>
           <div>
             <span className="text-[11px] uppercase text-text-muted font-bold block">Interviews Completed</span>
-            <div className="text-2xl font-extrabold text-text-primary">{reports.length > 0 ? reports.length : 1}</div>
-            <span className="text-[11px] text-mint">100% completion rate</span>
+            <div className="text-2xl font-extrabold text-text-primary">{reports.length}</div>
+            <span className="text-[11px] text-text-secondary">
+              {reports.length > 0 ? `${reports.length} session${reports.length > 1 ? 's' : ''} evaluated` : 'No completed sessions yet'}
+            </span>
           </div>
         </GlassCard>
 
@@ -75,9 +91,13 @@ export const CandidateDashboard: React.FC = () => {
           <div>
             <span className="text-[11px] uppercase text-text-muted font-bold block">Average Hire Score</span>
             <div className="text-2xl font-extrabold text-gold">
-              {reports.length > 0 ? Math.round(reports.reduce((acc, r) => acc + r.overallScore, 0) / reports.length) : 84}/100
+              {reports.length > 0
+                ? `${Math.round(reports.reduce((acc, r) => acc + (r.overallScore || 0), 0) / reports.length)}/100`
+                : '—'}
             </div>
-            <span className="text-[11px] text-text-secondary">Strong Hire Band</span>
+            <span className="text-[11px] text-text-secondary">
+              {reports.length > 0 ? 'Live average across your reports' : 'Complete an interview to see score'}
+            </span>
           </div>
         </GlassCard>
 
@@ -87,8 +107,12 @@ export const CandidateDashboard: React.FC = () => {
           </div>
           <div>
             <span className="text-[11px] uppercase text-text-muted font-bold block">Resume Strength</span>
-            <div className="text-2xl font-extrabold text-mint">{parsedResume?.strengthScore || 88}/100</div>
-            <span className="text-[11px] text-text-secondary">{parsedResume?.seniorityEstimate || 'Mid-Level'} Candidate</span>
+            <div className="text-2xl font-extrabold text-mint">
+              {parsedResume ? `${parsedResume.strengthScore}/100` : '—'}
+            </div>
+            <span className="text-[11px] text-text-secondary">
+              {parsedResume ? `${parsedResume.seniorityEstimate} Profile` : 'Upload resume in wizard to analyze'}
+            </span>
           </div>
         </GlassCard>
       </div>

@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   createdAt: string;
   avatarUrl?: string;
+  photoURL?: string;
   resumeId?: string;
   targetCompany?: string;
   targetRole?: string;
@@ -159,6 +160,7 @@ export interface InterviewSession {
   codeSnippets?: { language: string; code: string; lastUpdated: string };
   whiteboardNotes?: string;
   reportId?: string;
+  createdAt?: string;
   deviceCheckCompleted?: boolean;
 }
 

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { DEMO_EVALUATION_REPORT } from '../../data/seedData';
+import { DEMO_EVALUATION_REPORT, SEED_COMPANIES } from '../../data/seedData';
+import { api } from '../../services/api';
+import { Company } from '../../types';
 import { VoiceOrb } from '../common/VoiceOrb';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
@@ -13,14 +15,20 @@ import {
   Zap,
   Building2,
   FileText,
-  Sliders,
-  CheckCircle2,
-  Lock,
   Code
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
   const { setCurrentView, setWizardStep, setCurrentReport } = useAppStore();
+  const [companies, setCompanies] = useState<Company[]>(SEED_COMPANIES);
+
+  useEffect(() => {
+    api.getCompanies()
+      .then((data) => {
+        if (data && data.length > 0) setCompanies(data);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleStartInterview = () => {
     setWizardStep(1);
@@ -40,7 +48,7 @@ export const LandingPage: React.FC = () => {
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sage-500/15 border border-sage-300/30 backdrop-blur-md">
           <Sparkles className="w-3.5 h-3.5 text-gold animate-spin" />
           <span className="text-xs font-semibold text-mint tracking-wide">
-            Powered by Deepgram Voice Agent & Free-Tier Flash Reasoning
+            Conversational Voice AI & Technical Interview Engine
           </span>
         </div>
 
@@ -58,22 +66,22 @@ export const LandingPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Centerpiece Voice Orb with Interactive Ripples */}
+        {/* Centerpiece Voice Orb with Real Feature Badges */}
         <div className="relative py-6 flex items-center justify-center">
-          <VoiceOrb state="speaking" audioLevel={65} size={210} subtext="Real-time 24kHz conversational voice audio" />
+          <VoiceOrb state="speaking" audioLevel={65} size={210} subtext="Real-time conversational voice audio" />
 
-          {/* Floating Stat Card Left */}
-          <div className="hidden lg:block absolute left-4 top-1/4 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[190px] text-left animate-in fade-in slide-in-from-left duration-500">
-            <span className="text-[10px] uppercase font-bold text-mint block">Sub-Second Audio</span>
-            <div className="text-lg font-bold text-text-primary">480ms Latency</div>
-            <p className="text-[10px] text-text-muted mt-0.5">Supports natural barge-in interruptions</p>
+          {/* Floating Feature Card Left */}
+          <div className="hidden lg:block absolute left-4 top-1/4 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[200px] text-left animate-in fade-in slide-in-from-left duration-500">
+            <span className="text-[10px] uppercase font-bold text-mint block">Real-Time Audio</span>
+            <div className="text-base font-bold text-text-primary">Barge-In Interruption</div>
+            <p className="text-[10px] text-text-muted mt-0.5">Natural back-and-forth conversational turn-taking</p>
           </div>
 
-          {/* Floating Stat Card Right */}
-          <div className="hidden lg:block absolute right-4 top-1/3 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[190px] text-left animate-in fade-in slide-in-from-right duration-500">
-            <span className="text-[10px] uppercase font-bold text-gold block">Bar-Raiser Verdict</span>
-            <div className="text-lg font-bold text-text-primary">12-Section Audit</div>
-            <p className="text-[10px] text-text-muted mt-0.5">Detailed transcript quotes & actionable plan</p>
+          {/* Floating Feature Card Right */}
+          <div className="hidden lg:block absolute right-4 top-1/3 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[200px] text-left animate-in fade-in slide-in-from-right duration-500">
+            <span className="text-[10px] uppercase font-bold text-gold block">In-Depth Feedback</span>
+            <div className="text-base font-bold text-text-primary">12-Section Evaluation</div>
+            <p className="text-[10px] text-text-muted mt-0.5">Transcript evidence quotes & personalized practice plan</p>
           </div>
         </div>
 
@@ -109,19 +117,19 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Frosted Marquee Strip of Companies */}
+      {/* Synchronized Companies Strip */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="p-4 sm:p-5 rounded-3xl glass-1 border border-sage-300/20 shadow-lg text-center">
           <span className="text-[11px] uppercase tracking-wider text-text-muted font-semibold block mb-3">
-            Company-Specific Hiring Rubrics & Personas Included
+            Company-Specific Hiring Rubrics & Personas Synced from Database
           </span>
           <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-12 opacity-85">
-            {['Google', 'Amazon', 'Microsoft', 'TCS', 'Infosys', 'Tech Startups'].map((comp) => (
+            {companies.slice(0, 8).map((comp) => (
               <span
-                key={comp}
+                key={comp.id}
                 className="font-bold text-sm sm:text-base text-text-secondary hover:text-text-primary transition-colors cursor-default"
               >
-                {comp}
+                {comp.name}
               </span>
             ))}
           </div>
@@ -132,7 +140,7 @@ export const LandingPage: React.FC = () => {
       <section className="max-w-6xl mx-auto px-4 sm:px-6 space-y-8 text-left">
         <div className="text-center max-w-xl mx-auto space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-text-primary">
-            How InterviewIQ Works
+            How Shakchhatkar Works
           </h2>
           <p className="text-xs text-text-secondary">
             From parsing your achievements to realistic live grilling and actionable feedback.
@@ -144,13 +152,13 @@ export const LandingPage: React.FC = () => {
             {
               step: '01',
               title: 'Resume-Based Depth',
-              desc: 'Upload your PDF/DOCX. Gemini extracts key projects, skills, and past decisions to formulate tough, personalized technical questions.',
+              desc: 'Upload your PDF or DOCX. The AI parses real project milestones, tech stack, and responsibilities to formulate tailored questions.',
               icon: <FileText className="w-5 h-5 text-mint" />
             },
             {
               step: '02',
               title: 'Company Persona Bar',
-              desc: 'Select your target company (Google, Amazon, TCS, etc.). The AI adapts its tone, rigor, and rubrics to match real interviewers.',
+              desc: 'Select your target company. The system applies matching difficulty levels, architectural rigor, and company evaluation rubrics.',
               icon: <Building2 className="w-5 h-5 text-mint" />
             },
             {
@@ -190,15 +198,15 @@ export const LandingPage: React.FC = () => {
               <ShieldCheck className="w-6 h-6 text-mint" />
               <h4 className="font-bold text-sm text-text-primary">Strict Privacy Guarantee</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
-                Audio is transcribed securely and discarded. Webcam checks are purely local in-browser heuristics.
+                Candidate audio and session data are stored securely and associated only with your account.
               </p>
             </div>
 
             <div className="space-y-2">
               <Zap className="w-6 h-6 text-gold" />
-              <h4 className="font-bold text-sm text-text-primary">Mandatory Pre-Flight Lobby</h4>
+              <h4 className="font-bold text-sm text-text-primary">Pre-Flight Lobby Calibration</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
-                Live mic frequency waveform calibration, speaker check, and sample greeting test ensure zero call dropouts.
+                Microphone frequency checks, speaker tests, and greeting calibration ensure optimal audio quality.
               </p>
             </div>
 

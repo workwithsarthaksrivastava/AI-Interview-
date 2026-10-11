@@ -169,22 +169,38 @@ export const Step5LobbyCalibration: React.FC = () => {
   // Toggle Camera Preview
   const toggleCamera = async () => {
     if (cameraPreviewEnabled) {
-      if (videoStream) videoStream.getTracks().forEach((t) => t.stop());
+      if (videoStream) {
+        videoStream.getTracks().forEach((t) => t.stop());
+      }
       setVideoStream(null);
       setCameraPreviewEnabled(false);
+      addToast('info', 'Camera turned off.');
     } else {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          }
+        });
         setVideoStream(stream);
         setCameraPreviewEnabled(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (e) {
-        addToast('warning', 'Camera not detected or permission denied.');
+        addToast('success', 'Camera connected and ready.');
+      } catch (e: any) {
+        console.warn('Camera access error:', e);
+        addToast('warning', 'Camera not detected or permission denied. Please allow camera access in your browser.');
       }
     }
   };
+
+  // Ensure camera stream is assigned to video element when it mounts
+  useEffect(() => {
+    if (videoRef.current && videoStream && cameraPreviewEnabled) {
+      videoRef.current.srcObject = videoStream;
+      videoRef.current.play().catch((err) => console.warn('[Video] Play error:', err));
+    }
+  }, [videoStream, cameraPreviewEnabled]);
 
   // Play audio helper for base64 audio
   const playAudioBase64 = (base64: string): Promise<void> => {
@@ -810,7 +826,7 @@ export const Step5LobbyCalibration: React.FC = () => {
 
         {cameraPreviewEnabled && (
           <div className="mt-3 relative rounded-2xl overflow-hidden bg-black aspect-video max-w-sm mx-auto border border-sage-300/20">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover mirror" />
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover -scale-x-100 bg-black" />
             <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/60 text-[10px] text-mint">
               Live Preview
             </div>

@@ -19,8 +19,11 @@ import {
   handleGetCompanies,
   handleCreateCompany,
   handleUpdateCompany,
+  handleDeleteCompany,
   handleGetRoles,
   handleCreateRole,
+  handleUpdateRole,
+  handleDeleteRole,
   handleGetQuestions,
   handleCreateQuestion,
   handleBulkQuestions,
@@ -63,8 +66,11 @@ app.post('/api/interview/evaluate', handleEvaluate);
 app.get('/api/companies', handleGetCompanies);
 app.post('/api/companies', handleCreateCompany);
 app.put('/api/companies/:id', (req, res) => handleUpdateCompany(req, res, req.params.id));
+app.delete('/api/companies/:id', (req, res) => handleDeleteCompany(req, res, req.params.id));
 app.get('/api/roles', handleGetRoles);
 app.post('/api/roles', handleCreateRole);
+app.put('/api/roles/:id', (req, res) => handleUpdateRole(req, res, req.params.id));
+app.delete('/api/roles/:id', (req, res) => handleDeleteRole(req, res, req.params.id));
 app.get('/api/questions', handleGetQuestions);
 app.post('/api/questions', handleCreateQuestion);
 app.post('/api/questions/bulk', handleBulkQuestions);

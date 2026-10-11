@@ -7,6 +7,7 @@ import { CodeEditorPanel } from './CodeEditorPanel';
 import { WhiteboardPanel } from './WhiteboardPanel';
 import { GlassButton } from '../common/GlassButton';
 import { QuestionEvaluation, TranscriptTurn } from '../../types';
+import { saveReportToFirestore } from '../../services/firestoreData';
 import {
   Mic,
   MicOff,
@@ -22,7 +23,10 @@ import {
   AlertCircle,
   RefreshCw,
   Volume2,
-  Zap
+  Zap,
+  Video,
+  VideoOff,
+  User
 } from 'lucide-react';
 
 export type LiveEngineState =
@@ -141,6 +145,71 @@ export const LiveInterviewRoom: React.FC = () => {
 
   // End Interview confirmation modal
   const [showEndModal, setShowEndModal] = useState<boolean>(false);
+
+  // Candidate Live Video Feed State
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(cameraPreviewEnabled);
+  const [candidateStream, setCandidateStream] = useState<MediaStream | null>(null);
+  const candidateVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        }
+      });
+      setCandidateStream(stream);
+      setIsCameraActive(true);
+      if (candidateVideoRef.current) {
+        candidateVideoRef.current.srcObject = stream;
+        candidateVideoRef.current.play().catch(console.warn);
+      }
+    } catch (e: any) {
+      console.warn('Live camera access error:', e);
+      setIsCameraActive(false);
+      addToast('warning', 'Camera not detected or permission denied. Please allow camera access in your browser.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (candidateStream) {
+      candidateStream.getTracks().forEach((track) => track.stop());
+    }
+    setCandidateStream(null);
+    setIsCameraActive(false);
+  };
+
+  const toggleLiveCamera = () => {
+    if (isCameraActive) {
+      stopCamera();
+      addToast('info', 'Camera turned off.');
+    } else {
+      startCamera();
+      addToast('success', 'Camera turned on.');
+    }
+  };
+
+  // Auto-start camera if cameraPreviewEnabled was on from lobby, and clean up on unmount
+  useEffect(() => {
+    if (cameraPreviewEnabled) {
+      startCamera();
+    }
+    return () => {
+      if (candidateStream) {
+        candidateStream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  // Ensure srcObject is updated whenever candidateStream or isCameraActive changes
+  useEffect(() => {
+    if (candidateVideoRef.current && candidateStream && isCameraActive) {
+      candidateVideoRef.current.srcObject = candidateStream;
+      candidateVideoRef.current.play().catch((err) => console.warn('[Video] Play error:', err));
+    }
+  }, [candidateStream, isCameraActive]);
 
   // Helper to transition state cleanly and sync orb + store
   const transitionEngineState = useCallback((newState: LiveEngineState) => {
@@ -779,6 +848,11 @@ export const LiveInterviewRoom: React.FC = () => {
       });
 
       setCurrentReport(report);
+      if (currentUser?.uid) {
+        saveReportToFirestore(report, currentUser.uid).catch((err) =>
+          console.warn('[Firestore] Report save notice:', err)
+        );
+      }
       setCurrentView('report');
       addToast('success', 'Comprehensive evaluation complete!');
     } catch (e: any) {
@@ -994,6 +1068,47 @@ export const LiveInterviewRoom: React.FC = () => {
         )}
       </main>
 
+      {/* Floating Candidate Picture-in-Picture Webcam Feed */}
+      <div className="fixed bottom-24 right-4 sm:right-8 z-30 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden glass-3 border border-sage-300/30 shadow-2xl backdrop-blur-xl group transition-all">
+        {isCameraActive ? (
+          <div className="relative w-full h-full bg-black">
+            <video
+              ref={candidateVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover -scale-x-100"
+            />
+            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[9px] font-semibold text-mint flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
+              You
+            </div>
+            <button
+              onClick={toggleLiveCamera}
+              className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-1.5 right-1.5 p-1 rounded-lg bg-black/70 hover:bg-black text-white text-[10px] cursor-pointer"
+              title="Turn off camera"
+            >
+              <VideoOff className="w-3 h-3 text-red-400" />
+            </button>
+          </div>
+        ) : (
+          <div className="w-full h-full bg-sage-950/80 flex flex-col items-center justify-center gap-1.5 p-2 text-center">
+            <div className="w-7 h-7 rounded-full bg-sage-500/20 text-text-muted flex items-center justify-center">
+              <User className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] text-text-muted truncate max-w-full px-1">
+              {currentUser.name || 'Candidate'}
+            </span>
+            <button
+              onClick={toggleLiveCamera}
+              className="text-[9px] text-mint hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
+            >
+              <Video className="w-2.5 h-2.5" /> Start Video
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Bottom Floating Control Dock */}
       <footer className="relative z-20 max-w-3xl mx-auto w-full">
         {/* Text Input Row (when text mode active) */}
@@ -1017,7 +1132,7 @@ export const LiveInterviewRoom: React.FC = () => {
         )}
 
         <div className="p-3 rounded-2xl glass-3 border border-sage-300/25 shadow-2xl flex items-center justify-between gap-2">
-          {/* Left Actions: Mute & Hint & Repeat */}
+          {/* Left Actions: Mute & Camera & Hint & Repeat */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Mute toggle */}
             <button
@@ -1035,6 +1150,19 @@ export const LiveInterviewRoom: React.FC = () => {
               title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
             >
               {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+
+            {/* Camera toggle */}
+            <button
+              onClick={toggleLiveCamera}
+              className={`p-2.5 rounded-xl border transition-all ${
+                isCameraActive
+                  ? 'bg-sage-500/15 border-sage-300/20 text-mint hover:bg-sage-500/25'
+                  : 'bg-status-error/20 border-status-error text-status-error'
+              }`}
+              title={isCameraActive ? 'Turn off camera' : 'Turn on camera'}
+            >
+              {isCameraActive ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
             </button>
 
             {/* Request Hint */}

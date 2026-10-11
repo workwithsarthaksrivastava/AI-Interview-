@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Sparkles, Sun, Moon, Shield, User, Layers, Calendar, Video, FileText } from 'lucide-react';
+import { Sparkles, Sun, Moon, Shield, User, Layers, LogIn, LogOut } from 'lucide-react';
+import { isUserAdmin } from '../../utils/authGuards';
 
 export const GlassNavbar: React.FC = () => {
   const {
@@ -8,6 +9,10 @@ export const GlassNavbar: React.FC = () => {
     setCurrentView,
     currentUser,
     switchUserRole,
+    firebaseUser,
+    isFirebaseAuthLoading,
+    loginWithGoogleAction,
+    logoutAction,
     isDark,
     toggleTheme,
     reduceTransparency,
@@ -56,47 +61,85 @@ export const GlassNavbar: React.FC = () => {
           >
             My Past Reports
           </button>
-          <button
-            onClick={() => setCurrentView('admin')}
-            className={`flex items-center gap-1.5 transition-colors hover:text-sage-300 ${
-              currentView === 'admin' ? 'text-sage-400 font-semibold' : 'text-text-secondary'
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            Admin Console
-          </button>
+          {isUserAdmin(currentUser.email) && (
+            <button
+              onClick={() => setCurrentView('admin')}
+              className={`flex items-center gap-1.5 transition-colors hover:text-sage-300 ${
+                currentView === 'admin' ? 'text-sage-400 font-semibold' : 'text-text-secondary'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              Admin Console
+            </button>
+          )}
         </div>
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Role switcher toggle */}
-          <div className="flex items-center bg-sage-950/40 rounded-xl p-1 border border-sage-300/20">
+          {/* Role switcher toggle: strictly visible to sarthaksrivastava1084@gmail.com */}
+          {isUserAdmin(currentUser.email) && (
+            <div className="flex items-center bg-sage-950/40 rounded-xl p-1 border border-sage-300/20">
+              <button
+                onClick={() => switchUserRole('candidate')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-all ${
+                  currentUser.role === 'candidate'
+                    ? 'bg-sage-600/70 text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+                title="Preview Candidate view"
+              >
+                Candidate
+              </button>
+              <button
+                onClick={() => {
+                  switchUserRole('admin');
+                  setCurrentView('admin');
+                }}
+                className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-all ${
+                  currentUser.role === 'admin'
+                    ? 'bg-sage-600/70 text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+                title="Admin Console"
+              >
+                Admin
+              </button>
+            </div>
+          )}
+
+          {/* Firebase Google Auth button */}
+          {firebaseUser ? (
+            <div className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-xl bg-sage-500/15 border border-sage-400/30 text-xs">
+              {firebaseUser.photoURL ? (
+                <img
+                  src={firebaseUser.photoURL}
+                  alt={firebaseUser.displayName || 'User'}
+                  className="w-5 h-5 rounded-full object-cover border border-sage-400/40"
+                />
+              ) : (
+                <User className="w-4 h-4 text-sage-300" />
+              )}
+              <span className="font-medium text-text-primary hidden sm:inline max-w-[90px] truncate">
+                {firebaseUser.displayName?.split(' ')[0] || firebaseUser.email?.split('@')[0]}
+              </span>
+              <button
+                onClick={logoutAction}
+                className="p-1 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors ml-0.5"
+                title="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => switchUserRole('candidate')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-all ${
-                currentUser.role === 'candidate'
-                  ? 'bg-sage-600/70 text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-              title="Switch to Candidate view"
+              onClick={() => setCurrentView('login')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sage-500/20 hover:bg-sage-500/30 border border-sage-400/40 text-xs font-semibold text-text-primary transition-all shadow-sm cursor-pointer"
+              title="Sign In"
             >
-              Candidate
+              <LogIn className="w-3.5 h-3.5 text-sage-400" />
+              <span className="hidden sm:inline">Sign In</span>
             </button>
-            <button
-              onClick={() => {
-                switchUserRole('admin');
-                setCurrentView('admin');
-              }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-all ${
-                currentUser.role === 'admin'
-                  ? 'bg-sage-600/70 text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-              title="Switch to Admin view"
-            >
-              Admin
-            </button>
-          </div>
+          )}
 
           {/* Theme toggle */}
           <button

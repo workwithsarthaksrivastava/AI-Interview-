@@ -16,8 +16,13 @@ import {
   DeepgramCreditStatus
 } from '../types';
 import { SEED_COMPANIES, SEED_ROLES } from '../data/seedData';
+import { auth, loginWithGoogle, logoutUser } from '../services/firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { syncUserProfileToFirestore } from '../services/firestoreData';
+import { isUserAdmin, ADMIN_EMAIL } from '../utils/authGuards';
 
 export type AppView =
+  | 'login'
   | 'landing'
   | 'wizard'
   | 'lobby'
@@ -42,7 +47,11 @@ interface AppState {
 
   // Authentication & Role
   currentUser: User;
+  firebaseUser: FirebaseUser | null;
+  isFirebaseAuthLoading: boolean;
   switchUserRole: (role: 'candidate' | 'admin') => void;
+  loginWithGoogleAction: () => Promise<void>;
+  logoutAction: () => Promise<void>;
 
   // Accessibility & Theme
   isDark: boolean;
@@ -162,41 +171,74 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentView: 'landing',
-  setCurrentView: (view) => set({ currentView: view }),
+  currentView: 'login',
+  setCurrentView: (view) => {
+    if (view === 'admin' && !isUserAdmin(get().currentUser.email)) {
+      get().addToast('error', `Access Denied: Only ${ADMIN_EMAIL} can access the Admin Console.`);
+      return;
+    }
+    set({ currentView: view });
+  },
   adminTab: 'dashboard',
   setAdminTab: (tab) => set({ adminTab: tab }),
 
   currentUser: {
     uid: 'candidate-demo-1',
-    name: 'Sarthak Srivastava',
-    email: 'sarthaksrivastava1084@gmail.com',
+    name: 'Candidate User',
+    email: 'candidate@shakchhatkar.ai',
     role: 'candidate',
     createdAt: '2026-10-09T10:00:00.000Z',
     targetCompany: 'google',
     targetRole: 'sde-2'
   },
-  switchUserRole: (role) =>
+  firebaseUser: null,
+  isFirebaseAuthLoading: false,
+  switchUserRole: (role) => {
+    const activeEmail = get().currentUser.email;
+    if (role === 'admin' && !isUserAdmin(activeEmail)) {
+      get().addToast('error', `Unauthorized: Only ${ADMIN_EMAIL} can switch to the Admin role.`);
+      return;
+    }
+    set((state) => ({
+      currentUser: {
+        ...state.currentUser,
+        role
+      }
+    }));
+  },
+  loginWithGoogleAction: async () => {
+    set({ isFirebaseAuthLoading: true });
+    try {
+      const user = await loginWithGoogle();
+      if (user) {
+        get().addToast('success', `Signed in as ${user.displayName || user.email}`);
+        if (get().currentView === 'login') {
+          set({ currentView: 'landing' });
+        }
+      }
+    } catch (error: any) {
+      if (error.code !== 'auth/popup-closed-by-user') {
+        get().addToast('error', error.message || 'Google sign-in error');
+      }
+    } finally {
+      set({ isFirebaseAuthLoading: false });
+    }
+  },
+  logoutAction: async () => {
+    await logoutUser();
     set({
-      currentUser:
-        role === 'admin'
-          ? {
-              uid: 'admin-demo-1',
-              name: 'Elena Rostova',
-              email: 'admin@interviewiq.ai',
-              role: 'admin',
-              createdAt: '2026-10-09T10:00:00.000Z'
-            }
-          : {
-              uid: 'candidate-demo-1',
-              name: 'Sarthak Srivastava',
-              email: 'sarthaksrivastava1084@gmail.com',
-              role: 'candidate',
-              createdAt: '2026-10-09T10:00:00.000Z',
-              targetCompany: 'google',
-              targetRole: 'sde-2'
-            }
-    }),
+      firebaseUser: null,
+      currentView: 'login',
+      currentUser: {
+        uid: 'candidate-demo-1',
+        name: 'Guest Candidate',
+        email: 'guest@shakchhatkar.ai',
+        role: 'candidate',
+        createdAt: new Date().toISOString()
+      }
+    });
+    get().addToast('info', 'Signed out successfully');
+  },
 
   isDark: true,
   toggleTheme: () => {
@@ -348,3 +390,43 @@ function solveProblem(input: number[]): number {
   removeToast: (id) =>
     set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }))
 }));
+
+// Initialize auth state listener
+if (typeof window !== 'undefined') {
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const isAdmin = isUserAdmin(user.email);
+      const updatedUser: User = {
+        uid: user.uid,
+        name: user.displayName || user.email?.split('@')[0] || 'Candidate',
+        email: user.email || '',
+        role: isAdmin ? 'admin' : 'candidate',
+        createdAt: user.metadata.creationTime || new Date().toISOString(),
+        photoURL: user.photoURL || undefined,
+        avatarUrl: user.photoURL || undefined,
+      };
+
+      const currentView = useAppStore.getState().currentView;
+      const nextView = currentView === 'login'
+        ? 'landing'
+        : (!isAdmin && currentView === 'admin' ? 'landing' : currentView);
+
+      useAppStore.setState({
+        firebaseUser: user,
+        currentUser: updatedUser,
+        currentView: nextView,
+        isFirebaseAuthLoading: false
+      });
+      syncUserProfileToFirestore(updatedUser).catch(console.warn);
+    } else {
+      const currentView = useAppStore.getState().currentView;
+      const nextView = (currentView === 'admin') ? 'landing' : currentView;
+
+      useAppStore.setState({
+        firebaseUser: null,
+        currentView: nextView,
+        isFirebaseAuthLoading: false
+      });
+    }
+  });
+}

@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email.lower() == "sarthaksrivastava1084@gmail.com";
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Connection validation test document
+    match /test/{testId} {
+      allow get: if true;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isOwner(userId) &&
+        incoming().keys().hasAll(['id', 'email', 'role']) &&
+        incoming().id == userId &&
+        incoming().role in ['candidate', 'admin'] &&
+        (incoming().role != 'admin' || isAdmin());
+      allow update: if isValidId(userId) && (isOwner(userId) || isAdmin()) &&
+        incoming().id == existing().id &&
+        (incoming().role == existing().role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Interviews Collection
+    match /interviews/{interviewId} {
+      allow get: if isValidId(interviewId) && isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(interviewId) && isSignedIn() &&
+        incoming().userId == request.auth.uid &&
+        incoming().keys().hasAll(['id', 'userId', 'companyId', 'roleId', 'type', 'difficulty', 'status']);
+      allow update: if isValidId(interviewId) && isSignedIn() &&
+        (existing().userId == request.auth.uid || isAdmin()) &&
+        incoming().userId == existing().userId;
+      allow delete: if isValidId(interviewId) && isSignedIn() &&
+        (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // Evaluation Reports Collection
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId) && (
+        (isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin())) ||
+        (resource.data.shareToken is string && resource.data.shareToken.size() > 0)
+      );
+      allow list: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(reportId) && isSignedIn() &&
+        incoming().userId == request.auth.uid &&
+        incoming().keys().hasAll(['id', 'interviewId', 'userId', 'overallScore', 'gradeBand', 'hireReadinessVerdict']);
+      allow update: if isValidId(reportId) && isSignedIn() &&
+        (existing().userId == request.auth.uid || isAdmin()) &&
+        incoming().userId == existing().userId;
+      allow delete: if isValidId(reportId) && isSignedIn() &&
+        (existing().userId == request.auth.uid || isAdmin());
+    }
+  }
+}
