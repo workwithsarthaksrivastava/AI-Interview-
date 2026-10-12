@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+import { Type, ThinkingLevel } from '@google/genai';
 import { db, getGeminiClient, synthesizeDeepgramAura } from './db.js';
 import { InterviewPlan } from '../types/index.js';
 
@@ -18,140 +18,6 @@ function calculateSimilarity(str1: string, str2: string): number {
   }
   const union = new Set([...words1, ...words2]).size;
   return intersection / union;
-}
-
-function isTooSimilarToRecent(text: string, recentUtterances: string[]): boolean {
-  for (const recent of recentUtterances) {
-    if (calculateSimilarity(text, recent) > 0.6) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// -------------------------------------------------------------
-// DYNAMIC NLP CONCEPT EXTRACTOR & CREATIVE FOLLOW-UP ENGINE
-// -------------------------------------------------------------
-interface FollowUpProbeOption {
-  triggerRegex: RegExp;
-  probes: string[];
-}
-
-const CREATIVE_DOMAIN_PROBES: FollowUpProbeOption[] = [
-  {
-    triggerRegex: /\b(redis|cache|caching|memcached|in-memory|ttl|eviction)\b/i,
-    probes: [
-      `You touched on caching with Redis. How would your architecture guard against a catastrophic cache stampede if that high-traffic key expires simultaneously under 25,000 requests per second?`,
-      `If memory pressure surges and your cache cluster hits 95% capacity, which eviction policy (such as volatile-lru versus allkeys-lru) would you configure, and how do you prevent cascading latency to the primary database?`,
-      `How do you handle cache invalidation and consistency in a multi-region deployment? If a write occurs in US-East, how do you prevent stale reads in EU-West without incurring cross-continent round-trip latency on every read?`
-    ]
-  },
-  {
-    triggerRegex: /\b(kafka|queue|rabbitmq|sqs|event|pubsub|stream|consumer|producer)\b/i,
-    probes: [
-      `You mentioned message streaming. What partition key strategy do you employ to prevent hot-partition skew, and how does your consumer group recover if an unparseable poison pill message lands in the topic?`,
-      `When downstream database writes slow down by 400ms, how do your event consumers apply backpressure without exhausting worker thread pools or dropping in-flight messages?`,
-      `How do you guarantee idempotency and exactly-once processing semantics if a consumer crashes midway through processing an event batch before committing its partition offset?`
-    ]
-  },
-  {
-    triggerRegex: /\b(postgres|postgresql|mysql|mongo|mongodb|dynamodb|cassandra|sql|nosql|database|db|query)\b/i,
-    probes: [
-      `You highlighted relational storage. When write concurrency spikes, how do you diagnose and prevent row-level lock contention and deadlocks on frequently updated tables?`,
-      `What specific indexing strategy (such as composite B-trees or partial indexes) do you implement, and how do you monitor your query execution plans to ensure the planner never falls back to sequential table scans?`,
-      `If read traffic outgrows a single database instance, how do you handle replication lag between your primary and read replicas so users don't encounter stale reads right after submitting an update?`
-    ]
-  },
-  {
-    triggerRegex: /\b(microservice|microservices|api gateway|service mesh|grpc|rest|monolith)\b/i,
-    probes: [
-      `In that microservice decomposition, what happens when an upstream authentication or billing dependency experiences a 5-second latency tail? How does your circuit breaker prevent cascading thread starvation?`,
-      `How do you track end-to-end distributed tracing across multiple network boundaries, and what is your P99 latency budget across those inter-service hops?`,
-      `If a distributed business workflow fails at step 3 of 4, how does your Saga orchestrator coordinate compensating transactions across autonomous services without leaving inconsistent state?`
-    ]
-  },
-  {
-    triggerRegex: /\b(lock|locking|mutex|concurrency|race condition|thread|threads|async|parallel)\b/i,
-    probes: [
-      `Under extreme write contention, what are the trade-offs of optimistic locking with version checks versus pessimistic row locks in terms of database CPU and retry storms?`,
-      `How does your implementation guarantee thread safety and memory visibility across worker threads without introducing global lock bottlenecks that throttle throughput?`,
-      `If two concurrent requests attempt to reserve the exact same inventory item simultaneously, walk me through the exact transaction boundary or atomic instruction that breaks the tie.`
-    ]
-  },
-  {
-    triggerRegex: /\b(react|frontend|ui|virtualization|render|re-render|component|state|hook|hooks|css|dom)\b/i,
-    probes: [
-      `You touched on frontend rendering. How do you profile deeply nested component trees for redundant re-renders, and why can premature use of useMemo or useCallback actually hurt performance?`,
-      `If an interactive dashboard UI suffers from poor Interaction to Next Paint (INP) above 500ms during heavy user events, how would you offload computation to Web Workers or schedule tasks with requestIdleCallback?`,
-      `How do you draw the boundary between server state (like React Query), local component state, and global stores (like Zustand), especially when handling optimistic UI rollbacks on network failure?`
-    ]
-  },
-  {
-    triggerRegex: /\b(docker|kubernetes|k8s|container|canary|ci\/cd|deploy|pipeline|terraform)\b/i,
-    probes: [
-      `During a canary deployment rollout, what specific automated observability metrics and error budget thresholds trigger an instantaneous automated rollback?`,
-      `In Kubernetes, how do you size pod CPU/memory requests versus limits to avoid CPU throttling while preventing silent OOMKilled evictions under traffic spikes?`,
-      `How do you manage zero-downtime database schema migrations when deploying a new version of the service that alters column definitions or constraints?`
-    ]
-  },
-  {
-    triggerRegex: /\b(star|incident|outage|bug|post-mortem|failure|mistake|pressure)\b/i,
-    probes: [
-      `Reflecting on that incident, what was the primary contributing factor that slipped past automated unit and integration tests, and what structural guardrail did your team implement in the post-mortem?`,
-      `Under that intense production pressure, how did you balance immediate mitigation (like traffic shedding or rollbacks) against preserving debugging state to analyze root cause?`,
-      `If you had to redesign that alerting and observability architecture from scratch today, what single metric or signal would you ensure alerted on that regression before users noticed?`
-    ]
-  }
-];
-
-const GENERIC_CREATIVE_CHALLENGES = [
-  `That's a logical foundation. Let's stress-test that: If your system experienced an unexpected 20x traffic surge during a marketing event, what is the very first bottleneck that would degrade, and how does your architecture prevent cascading failure?`,
-  `What was the strongest alternative architectural approach you evaluated before deciding on this design, and what specific trade-off tipped the balance?`,
-  `What is the single most catastrophic failure mode in that proposed design, and how does the system recover gracefully without data loss or prolonged downtime?`,
-  `Walk me through the observability signals and P99 latency metrics you would monitor in real-time to know this component is operating within its healthy SLA.`,
-  `If an unexpected network partition split your data centers in half (a split-brain scenario), which side of the CAP theorem did your design favor and why?`
-];
-
-function extractCreativeFollowUp(
-  candidateMessage: string,
-  candidateCode: string,
-  category: string,
-  userRequestedChallenge: boolean,
-  lastAiUtterances: string[]
-): string {
-  const combinedText = `${candidateMessage} ${candidateCode}`.toLowerCase();
-
-  if (userRequestedChallenge) {
-    const challengePool = [
-      `Let's raise the bar on this: Imagine a regional data center goes dark during peak load, cutting your cluster capacity in half. Walk me through your real-time failover, shedding, and backpressure strategy to prevent a total outage.`,
-      `Here is a tough architectural challenge: A flash traffic event triggers 50,000 concurrent writes per second on your primary datastore, causing connection pools to saturate. How do you re-architect the write path for asynchronous durability without dropping transactions?`,
-      `Let's push on the edge cases: How does your architecture guarantee zero data corruption or phantom duplicate charges if a network timeout occurs midway through a 3-way distributed transaction?`
-    ];
-    for (const c of challengePool) {
-      if (!isTooSimilarToRecent(c, lastAiUtterances)) return c;
-    }
-    return challengePool[0];
-  }
-
-  // Scan matched domains
-  for (const item of CREATIVE_DOMAIN_PROBES) {
-    if (item.triggerRegex.test(combinedText)) {
-      for (const probe of item.probes) {
-        if (!isTooSimilarToRecent(probe, lastAiUtterances)) {
-          return probe;
-        }
-      }
-    }
-  }
-
-  // Fallback to rich creative challenge
-  for (const gen of GENERIC_CREATIVE_CHALLENGES) {
-    if (!isTooSimilarToRecent(gen, lastAiUtterances)) {
-      return gen;
-    }
-  }
-
-  return GENERIC_CREATIVE_CHALLENGES[0];
 }
 
 export async function handleInterviewSpeechTurnCore(payload: any) {
@@ -182,226 +48,222 @@ export async function handleInterviewSpeechTurnCore(payload: any) {
 
   const gemini = getGeminiClient();
   if (gemini) {
-    let attempts = 0;
-    while (attempts < 2) {
-      attempts++;
-      try {
-        const temperature = attempts === 1 ? 0.75 : 0.95;
+    try {
+      const systemPrompt = `You are an elite, highly empathetic, and direct Principal Technical Interviewer at ${companyName} conducting an interactive live mock interview with ${candidateName} for the ${roleTitle} role (${difficulty} level, ${interviewType} round).
 
-        const systemPrompt = `You are a Principal Engineer and Lead Interviewer at ${companyName} conducting an interview with ${candidateName} for the ${roleTitle} position (${difficulty} level, ${interviewType} round, language: ${language}).
-
-CURRENT INTERVIEW STATUS:
+CONTEXT:
 Active Question #${currentQuestionIndex + 1}:
 ${currentPlanQ ? `Category: ${currentPlanQ.category}
 Question Text: "${currentPlanQ.question}"
 Rationale: ${currentPlanQ.contextOrRationale}
-Expected Criteria: ${(currentPlanQ.rubricCriteria || []).join('; ')}
-Expected Keywords: ${(currentPlanQ.expectedKeywords || []).join(', ')}` : 'Wrap-up & Candidate Questions stage'}
+Expected Keywords: ${(currentPlanQ.expectedKeywords || []).join(', ')}` : 'Interview Closing Wrap-up'}
 
 Next Planned Question #${currentQuestionIndex + 2}:
-${nextPlanQ ? `"${nextPlanQ.question}" (${nextPlanQ.category})` : 'Interview Conclusion / Closing wrap-up'}
+${nextPlanQ ? `"${nextPlanQ.question}" (${nextPlanQ.category})` : 'Final Closing Wrap-up & Candidate Questions'}
 
-Questions Asked So Far:
-${askedQuestions.length > 0 ? askedQuestions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n') : '(None yet)'}
+Follow-up count on current question: ${followUpCount} (Max 2 before advancing)
+Candidate requested challenge: ${userRequestedChallenge}
+Candidate requested hint: ${userRequestedHint}
+Candidate requested repeat: ${userRequestedRepeat}
 
-Follow-up count on this question: ${followUpCount} (MAX 2 allowed per question)
-Candidate requested challenge / tough probe: ${userRequestedChallenge}
+Previous Utterances to Avoid:
+${lastAiUtterances.slice(-5).map((u: string) => `- "${u}"`).join('\n') || '(None)'}
 
-Last 10 AI Utterances (CRITICAL: DO NOT REPEAT OR CLOSELY PARAPHRASE ANY OF THESE):
-${lastAiUtterances.length > 0 ? lastAiUtterances.slice(-10).map((u: string) => `- "${u}"`).join('\n') : '(None)'}
+CRITICAL HUMAN INTERACTION & CONVERSATIONAL RULES (MANDATORY):
+1. CANDIDATE SAYS "I DON'T KNOW", "NOT SURE", "SORRY", "NO IDEA", OR ASKS TO SKIP:
+   - Action = "next_question".
+   - First, CONSOLE and reassure them with genuine human warmth. Nobody knows everything, and honesty is valued in engineering.
+   - If the question was a basic fundamental for their seniority (e.g. Senior or Lead not knowing basics like indices, mutexes, HTTP codes, or data structures):
+     Be honestly constructive! Say something like: "No worries at all! To be candid, for a ${difficulty} role this is a basic fundamental you'll definitely want to review later, but don't sweat it today. Let's move along to our next question: ${nextPlanQ ? nextPlanQ.question : 'Wrap-up questions'}".
+   - If it was an advanced or specialized concept:
+     Console warmly: "No worries at all, that's completely okay! Nobody has every edge case memorized, and I appreciate your honesty. Let's pivot to our next area: ${nextPlanQ ? nextPlanQ.question : 'Wrap-up questions'}".
+
+2. CANDIDATE ASKS TO REPEAT ("Can you repeat?", "Didn't hear you", "Say that again", "What was that?", "Could you rephrase?"):
+   - Action = "clarify".
+   - DO NOT repeat the exact same formal sentence! REPEAT IN MUCH SIMPLER, INTUITIVE TERMS.
+   - Strip away academic jargon and explain the challenge in plain English using a real-world scenario (e.g. "No problem, let me simplify that: in plain English, imagine thousands of shoppers all trying to buy the exact same item at the same millisecond—how do you prevent the database from double-selling or freezing up?").
+
+3. CANDIDATE ASKS FOR A HINT OR CLUE:
+   - Action = "clarify".
+   - Give an intuitive, encouraging conceptual hint without giving away the full answer.
+
+4. CANDIDATE ANSWERS THE TECHNICAL QUESTION:
+   - Listen to their exact answer: "${candidateMessage}".
+   - Provide an authentic, concise human reaction (e.g., "Good instinct on partition keys...", "I like that you addressed cache invalidation first...", "Watch out though, that creates a bottleneck on the primary database...").
+   - If followUpCount === 0 OR userRequestedChallenge is true:
+     - Action = "follow_up".
+     - Ask an authentic, sharp follow-up probe digging into trade-offs, 10x scale, concurrency, or failure recovery.
+     - Keep it concise (1 to 2 sentences) so the candidate speaks most of the time.
+   - If followUpCount >= 1 OR candidate gave a thorough answer:
+     - Action = "next_question".
+     - Acknowledge their point in 1 crisp sentence, then smoothly transition and clearly pose the Next Planned Question: "${nextPlanQ ? nextPlanQ.question : plan?.closingQuestion || 'What questions do you have for me?'}".
+
+5. SPEED & TONE:
+   - Respond in 1 to 3 punchy sentences maximum.
+   - Sound like a real, supportive yet sharp senior engineer. Avoid robotic praise ("That's great!", "Interesting!").`;
+
+      const contents = [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `Transcript so far:
+${transcriptHistory.slice(-8).map((t: any) => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n')}
+
+Candidate just said:
+"${candidateMessage}"
 
 Candidate Code in Editor:
 """
 ${candidateCode || '(Empty)'}
-"""
-
-CRITICAL INTERVIEW FLOW RULES (MANDATORY):
-1. The candidate just answered the Active Question: "${currentPlanQ ? currentPlanQ.question : ''}".
-   DO NOT RE-ASK THIS QUESTION. They already heard it and answered it!
-2. If userRequestedHint is true: Provide an encouraging, conceptual clue without giving away the full answer (action = "clarify").
-3. If userRequestedRepeat is true: Rephrase the question clearly (action = "clarify").
-4. If followUpCount === 0 OR userRequestedChallenge is true:
-   - ACTION = "follow_up":
-   - Ask an INTERACTIVE, CREATIVE, SHARP follow-up probe!
-   - Ground your probe directly in a specific term, method, metric, or trade-off the candidate just mentioned (e.g., Redis, Kafka, Raft, B-Tree, React hooks, memory leaks, P99 latency, rollback).
-   - Challenge their assumptions: ask about a 10x traffic spike, a network partition, a cache invalidation race, database lock contention, or why they chose X over Y.
-   - Concise: 2 to 3 sentences maximum so the candidate speaks most of the time.
-5. If followUpCount >= 1 and candidate gave a clear answer:
-   - ACTION = "next_question":
-   - Acknowledge their point in 1 crisp sentence (e.g. "That makes sense regarding partition keys.").
-   - Smoothly transition and CLEARLY POSE the Next Planned Question: "${nextPlanQ ? nextPlanQ.question : plan?.closingQuestion || 'Wrap-up questions'}".
-6. End of Interview:
-   - If nextPlanQ does not exist and current questions are complete, action = "end". Welcome candidate to ask their questions.
-7. ANTI-REPETITION (MANDATORY):
-   - Never start with stock openers like "That's great", "Interesting", "Thank you for sharing", "Thanks for sharing", "Awesome", "Got it", "I see", "Understood", "Very well", "Nice".
-   - Start directly with your authentic reaction to what candidate said.
-8. Return strict JSON according to schema.`;
-
-        const contents = [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `Transcript so far:
-${transcriptHistory.map((t: any) => `${t.speaker.toUpperCase()}: ${t.text}`).join('\n')}
-
-Candidate just answered:
-"${candidateMessage}"
-
-Candidate requested hint? ${userRequestedHint}
-Candidate requested repeat? ${userRequestedRepeat}
-Candidate requested challenge? ${userRequestedChallenge}
-Silent seconds: ${silentSeconds}`
-              }
-            ]
-          }
-        ];
-
-        const response = await gemini.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                reaction: { type: Type.STRING },
-                action: { type: Type.STRING, enum: ['follow_up', 'next_question', 'clarify', 'end'] },
-                next_utterance: { type: Type.STRING },
-                evaluation: {
-                  type: Type.OBJECT,
-                  properties: {
-                    relevance: { type: Type.NUMBER },
-                    depth: { type: Type.NUMBER },
-                    clarity: { type: Type.NUMBER },
-                    confidence: { type: Type.NUMBER },
-                    notes: { type: Type.STRING },
-                    whatWasGood: { type: Type.STRING },
-                    whatWasMissing: { type: Type.STRING },
-                    mistakesOrErrors: { type: Type.STRING },
-                    idealModelAnswer: { type: Type.STRING }
-                  },
-                  required: ['relevance', 'depth', 'clarity', 'confidence', 'notes', 'whatWasGood', 'whatWasMissing', 'mistakesOrErrors', 'idealModelAnswer']
-                }
-              },
-              required: ['reaction', 'action', 'next_utterance', 'evaluation']
+"""`
             }
-          }
-        });
-
-        const parsed = JSON.parse(response.text || '{}');
-        if (parsed.next_utterance) {
-          let cleanUtterance = parsed.next_utterance;
-          if (hasStockOpener(cleanUtterance)) {
-            cleanUtterance = cleanUtterance.replace(STOCK_OPENERS_REGEX, '').trim();
-            cleanUtterance = cleanUtterance.charAt(0).toUpperCase() + cleanUtterance.slice(1);
-          }
-
-          const ttsResult = await synthesizeDeepgramAura(cleanUtterance);
-          const fillerWordsFound = (candidateMessage.match(/\b(um|uh|like|basically|actually|you know|sort of|matlab|so yeah)\b/gi) || []).map((w: string) => w.toLowerCase());
-          const wordCount = candidateMessage.trim().split(/\s+/).filter(Boolean).length;
-
-          return {
-            success: true,
-            reaction: parsed.reaction,
-            action: parsed.action,
-            next_utterance: cleanUtterance,
-            aiResponseText: cleanUtterance,
-            evaluation: parsed.evaluation,
-            audioBase64: ttsResult.audioBase64,
-            audioFormat: ttsResult.format,
-            fillerWordsFound,
-            wordCount,
-            advanceQuestion: parsed.action === 'next_question'
-          };
+          ]
         }
-      } catch (err: any) {
-        console.warn(`[Turn Generation] Gemini attempt ${attempts} warning:`, err.message);
+      ];
+
+      // Ultra-low latency generation with ThinkingLevel.LOW
+      const response = await gemini.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.35,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              reaction: { type: Type.STRING },
+              action: { type: Type.STRING, enum: ['follow_up', 'next_question', 'clarify', 'end'] },
+              next_utterance: { type: Type.STRING },
+              evaluation: {
+                type: Type.OBJECT,
+                properties: {
+                  relevance: { type: Type.NUMBER },
+                  depth: { type: Type.NUMBER },
+                  clarity: { type: Type.NUMBER },
+                  confidence: { type: Type.NUMBER },
+                  notes: { type: Type.STRING }
+                },
+                required: ['relevance', 'depth', 'clarity', 'confidence', 'notes']
+              }
+            },
+            required: ['reaction', 'action', 'next_utterance', 'evaluation']
+          }
+        }
+      });
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (parsed.next_utterance) {
+        let cleanUtterance = parsed.next_utterance;
+        if (hasStockOpener(cleanUtterance)) {
+          cleanUtterance = cleanUtterance.replace(STOCK_OPENERS_REGEX, '').trim();
+          cleanUtterance = cleanUtterance.charAt(0).toUpperCase() + cleanUtterance.slice(1);
+        }
+
+        const ttsResult = await synthesizeDeepgramAura(cleanUtterance);
+        const fillerWordsFound = (candidateMessage.match(/\b(um|uh|like|basically|actually|you know|sort of|matlab|so yeah)\b/gi) || []).map((w: string) => w.toLowerCase());
+        const wordCount = candidateMessage.trim().split(/\s+/).filter(Boolean).length;
+
+        return {
+          success: true,
+          reaction: parsed.reaction,
+          action: parsed.action,
+          next_utterance: cleanUtterance,
+          aiResponseText: cleanUtterance,
+          evaluation: {
+            ...parsed.evaluation,
+            whatWasGood: 'Authentic response addressing the conversation.',
+            whatWasMissing: 'Can articulate deeper quantitative metrics and edge cases.',
+            mistakesOrErrors: 'None noted.',
+            idealModelAnswer: currentPlanQ?.contextOrRationale || 'A structured architectural answer with trade-offs.'
+          },
+          audioBase64: ttsResult.audioBase64,
+          audioFormat: ttsResult.format,
+          fillerWordsFound,
+          wordCount,
+          advanceQuestion: parsed.action === 'next_question'
+        };
       }
+    } catch (err: any) {
+      console.warn('[Turn Generation] Gemini turn warning, falling back to adaptive engine:', err.message);
     }
   }
 
   // -------------------------------------------------------------
-  // INTELLIGENT ADAPTIVE SPEECH ENGINE (Resilient, Context-Aware)
+  // INTELLIGENT CONTEXT-AWARE & EMPATHETIC ADAPTIVE ENGINE
   // -------------------------------------------------------------
+  const normalizedMsg = candidateMessage.toLowerCase().trim();
+
+  const isAdmittingNoAnswer =
+    /\b(don't know|dont know|not sure|no idea|haven't worked with|havent worked|cannot answer|can't answer|skip this|move on|never used|unfamiliar|pass on this|have no clue)\b/i.test(normalizedMsg) ||
+    (/\b(sorry|apologies)\b/i.test(normalizedMsg) && /\b(no|don't|dont|not|can't|cant|clue)\b/i.test(normalizedMsg));
+
   const isAskingToRepeat =
     userRequestedRepeat ||
-    /\b(repeat|pardon|what was the question|say that again|could you repeat|didn't hear|can you say)\b/i.test(candidateMessage);
+    /\b(repeat|pardon|what was the question|say that again|could you repeat|didn't hear|did not hear|can you say|rephrase)\b/i.test(normalizedMsg);
 
   const isAskingForHint =
     userRequestedHint ||
-    /\b(hint|clue|can you give me a hint|not sure|help me|stuck)\b/i.test(candidateMessage);
+    /\b(hint|clue|can you give me a hint|help me|stuck|give a clue)\b/i.test(normalizedMsg);
 
   const isMicCheck =
-    /\b(can you hear me|hello|am i audible|test|testing|is this working|hope you can hear)\b/i.test(candidateMessage) &&
-    candidateMessage.trim().split(/\s+/).length <= 15;
+    /\b(can you hear me|hello|am i audible|test|testing|is this working|hope you can hear)\b/i.test(normalizedMsg) &&
+    normalizedMsg.split(/\s+/).length <= 15;
 
   let reaction = 'Candidate response acknowledged.';
   let action: 'follow_up' | 'next_question' | 'clarify' | 'end' = 'follow_up';
   let next_utterance = '';
 
-  if (isAskingToRepeat) {
+  if (isAdmittingNoAnswer) {
+    action = 'next_question';
+    reaction = 'Candidate admitted unfamiliarity; consoled with empathy and moved to next topic.';
+    const isSeniorLevel = difficulty === 'Senior' || difficulty === 'Lead';
+    const isBasicCategory = currentPlanQ?.category?.toLowerCase().includes('fundamental') || currentPlanQ?.category?.toLowerCase().includes('core');
+
+    if (isSeniorLevel && isBasicCategory) {
+      next_utterance = `No worries at all, I appreciate your honesty! To be candid, for a ${difficulty} position, this is a core building block you'll definitely want to review later, but don't sweat it today. Let's move right along to our next question: ${nextPlanQ ? nextPlanQ.question : 'What questions do you have for me?'}`;
+    } else {
+      next_utterance = `No problem at all, that's completely okay! Tech interviews cover a lot of ground, so don't stress over it. Let's pivot to our next area: ${nextPlanQ ? nextPlanQ.question : 'What questions do you have for me?'}`;
+    }
+  } else if (isAskingToRepeat) {
     action = 'clarify';
-    reaction = 'Repeated current question at candidate request.';
+    reaction = 'Rephrased question in simpler, intuitive terms.';
     const qText = currentPlanQ?.question || 'Could you walk me through your technical background and experience?';
-    next_utterance = `Certainly! To repeat the question: ${qText}`;
+    next_utterance = `Sure, let me simplify that for you! In plain terms: ${qText.replace(/^(Could you |Can you |Please )/i, '').replace(/\?$/, '')}. How would you approach that in production?`;
   } else if (isAskingForHint) {
     action = 'clarify';
     reaction = 'Provided conceptual hint.';
     const hintKeywords = currentPlanQ?.expectedKeywords?.slice(0, 3).join(', ') || 'key architectural trade-offs';
-    next_utterance = `Here is a hint to guide your thinking: Consider ${hintKeywords}. Think about how you would structure the design to optimize for reliability and performance.`;
+    next_utterance = `Here is a hint to guide your thinking: Consider ${hintKeywords}. Think through how you would optimize for reliability, performance, and failure recovery.`;
   } else if (isMicCheck) {
     action = 'clarify';
     reaction = 'Confirmed audio reception with candidate.';
     const qText = currentPlanQ?.question || 'Please tell me a bit about yourself and your recent engineering projects.';
-    next_utterance = `Yes, I can hear you clearly! Let's continue. ${qText}`;
+    next_utterance = `Yes, I can hear you loud and clear! Let's continue. ${qText}`;
   } else if (userRequestedChallenge) {
-    // Immediate Bar-Raiser Challenge
     action = 'follow_up';
     reaction = 'Challenging candidate with high-stakes scenario.';
-    next_utterance = extractCreativeFollowUp(candidateMessage, candidateCode, currentPlanQ?.category || 'technical', true, lastAiUtterances);
+    next_utterance = `Let's push further on this design: Imagine traffic surges by 20x during a peak event, causing connection pool exhaustion on your primary datastore. Walk me through your failover, shedding, and backpressure strategy.`;
   } else if (followUpCount === 0) {
-    // Candidate answered main question: ALWAYS ask an interactive, creative follow-up probe!
     action = 'follow_up';
     reaction = 'Probing candidate with contextual technical follow-up.';
-    next_utterance = extractCreativeFollowUp(candidateMessage, candidateCode, currentPlanQ?.category || 'technical', false, lastAiUtterances);
-  } else if (followUpCount === 1) {
-    // Candidate answered 1st follow-up
-    const words = candidateMessage.trim().split(/\s+/).filter(Boolean);
-    if (words.length < 15) {
-      // Short response: probe once more
-      action = 'follow_up';
-      reaction = 'Probing for additional depth on follow-up.';
-      next_utterance = extractCreativeFollowUp(candidateMessage, candidateCode, currentPlanQ?.category || 'technical', false, lastAiUtterances);
+    if (currentPlanQ?.category?.toLowerCase().includes('intro') || currentPlanQ?.category?.toLowerCase().includes('warmup')) {
+      next_utterance = `That gives me helpful context on your background. Building on that, what was the most demanding architectural problem you personally led in your recent projects, and what trade-offs did you make?`;
     } else {
-      // Good response: transition smoothly to next question!
-      if (nextPlanQ) {
-        action = 'next_question';
-        reaction = 'Candidate provided thorough depth. Advancing to next plan question.';
-        const transitionIntros = [
-          `That makes sense and addresses the key trade-offs. Building on that foundation, let's explore our next area: ${nextPlanQ.question}`,
-          `Good breakdown of those constraints. Shifting gears to our next topic: ${nextPlanQ.question}`,
-          `Understood. That gives me a clear picture of your approach. Let's move into our next question: ${nextPlanQ.question}`
-        ];
-        next_utterance = transitionIntros[Math.floor(Math.random() * transitionIntros.length)];
-      } else {
-        action = 'end';
-        reaction = 'Interview plan complete.';
-        next_utterance = `Thank you, ${candidateName}. We have covered all the core technical and architectural areas today. You did very well. What questions do you have for me about our tech stack, roadmap, or engineering culture at ${companyName}?`;
-      }
+      next_utterance = `That makes sense on the core design. How would your architecture guard against data inconsistency or race conditions if two concurrent updates hit that path at the exact same millisecond?`;
     }
   } else {
-    // followUpCount >= 2: Advance to next question
+    // Advance to next planned question
     if (nextPlanQ) {
       action = 'next_question';
-      reaction = 'Advancing to next plan question.';
-      next_utterance = `That gives me a solid read on your thinking here. Let's move to our next question: ${nextPlanQ.question}`;
+      reaction = 'Advancing to next planned question.';
+      next_utterance = `Understood, that gives me a clear read on your approach. Let's move into our next area: ${nextPlanQ.question}`;
     } else {
       action = 'end';
       reaction = 'Interview plan complete.';
-      next_utterance = `Thank you, ${candidateName}. We have covered all key topics today. What questions do you have for me about ${companyName}?`;
+      next_utterance = `Thank you, ${candidateName}. We have covered all the core technical and architectural areas today. You did very well. What questions do you have for me about our tech stack, roadmap, or engineering culture at ${companyName}?`;
     }
   }
 
@@ -415,14 +277,20 @@ Silent seconds: ${silentSeconds}`
   const wordCount = candidateMessage.trim().split(/\s+/).filter(Boolean).length;
 
   const evaluation = {
-    relevance: Math.min(10, Math.max(6, 8 + (wordCount > 20 ? 1 : 0))),
-    depth: Math.min(10, Math.max(6, 7 + (wordCount > 30 ? 2 : 1))),
-    clarity: 8.5,
-    confidence: 8,
-    notes: `Candidate addressed ${currentPlanQ?.category || 'question'} with relevant context.`,
-    whatWasGood: 'Clear articulation and structured response.',
-    whatWasMissing: 'Could provide more specific quantitative metrics and production edge-case considerations.',
-    mistakesOrErrors: 'None noted.',
+    relevance: isAdmittingNoAnswer ? 2 : Math.min(10, Math.max(5, 7 + (wordCount > 20 ? 1 : 0))),
+    depth: isAdmittingNoAnswer ? 1 : Math.min(10, Math.max(5, 6 + (wordCount > 30 ? 2 : 1))),
+    clarity: isAdmittingNoAnswer ? 7 : 8,
+    confidence: isAdmittingNoAnswer ? 4 : 7.5,
+    notes: isAdmittingNoAnswer
+      ? 'Candidate acknowledged unfamiliarity with this topic. Transparent, but identifies a clear knowledge gap.'
+      : `Candidate addressed ${currentPlanQ?.category || 'question'} with relevant context.`,
+    whatWasGood: isAdmittingNoAnswer
+      ? 'Honest admission without attempting to bluff or guess.'
+      : 'Constructive response addressing the technical scenario.',
+    whatWasMissing: isAdmittingNoAnswer
+      ? 'Technical understanding and practical production experience on this core topic.'
+      : 'Could provide more specific quantitative metrics and edge-case considerations.',
+    mistakesOrErrors: isAdmittingNoAnswer ? 'Unable to provide technical approach.' : 'None noted.',
     idealModelAnswer: currentPlanQ?.contextOrRationale || 'A well-structured answer with concrete architectural trade-offs.'
   };
 

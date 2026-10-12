@@ -23,15 +23,19 @@ export const Step1ResumeUpload: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [newSkill, setNewSkill] = useState('');
 
-  const handleParse = async (textToParse: string, name = 'resume.pdf') => {
+  const handleParse = async (
+    input: string | { resumeText?: string; fileData?: string; mimeType?: string; fileName?: string },
+    name = 'resume.pdf'
+  ) => {
     try {
       setIsParsingResume(true);
-      const data = await api.parseResume(textToParse, name);
+      const data = await api.parseResume(input, name);
       setParsedResume(data);
       addToast('success', `Resume parsed successfully for ${data.name}!`);
     } catch (err: any) {
       console.warn('Resume parse exception, applying heuristic profile:', err);
-      const fallback = parseResumeHeuristically(textToParse, name);
+      const fallbackText = typeof input === 'string' ? input : (input.resumeText || '');
+      const fallback = parseResumeHeuristically(fallbackText, name);
       setParsedResume(fallback);
       addToast('success', `Resume parsed successfully for ${fallback.name}!`);
     } finally {
@@ -43,20 +47,45 @@ export const Step1ResumeUpload: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      addToast('warning', 'File size exceeds 5 MB. Please upload a smaller file.');
+    if (file.size > 10 * 1024 * 1024) {
+      addToast('warning', 'File size exceeds 10 MB. Please upload a smaller file.');
       return;
     }
 
     setFileName(file.name);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setRawText(content || DEMO_CANDIDATE_RESUME);
-      handleParse(content || DEMO_CANDIDATE_RESUME, file.name);
-    };
-    reader.readAsText(file);
+    if (isPdf) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        setRawText(`[Uploaded Document: ${file.name} (${Math.round(file.size / 1024)} KB)]`);
+        handleParse(
+          {
+            fileData: base64Data,
+            mimeType: 'application/pdf',
+            fileName: file.name
+          },
+          file.name
+        );
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setRawText(content || DEMO_CANDIDATE_RESUME);
+        handleParse(
+          {
+            resumeText: content || DEMO_CANDIDATE_RESUME,
+            fileName: file.name
+          },
+          file.name
+        );
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleAddSkill = () => {

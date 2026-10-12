@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+import { Type, ThinkingLevel } from '@google/genai';
 import { db, getGeminiClient } from './db.js';
 
 
@@ -581,6 +581,8 @@ Return structured JSON. Every question must be distinct, non-repetitive, and dee
       model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        temperature: 0.35,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { EvaluationReport } from '../../types';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
+import { downloadEvaluationReportPdf } from '../../utils/pdfGenerator';
 import {
   Award,
   TrendingUp,
@@ -48,10 +49,16 @@ export const EvaluationReportView: React.FC = () => {
 
   const r = currentReport;
 
-  // Print/Download PDF
+  // Download PDF
   const handlePrintPdf = () => {
-    window.print();
-    addToast('success', 'Opening print preview for PDF generation...');
+    try {
+      downloadEvaluationReportPdf(r);
+      addToast('success', 'Evaluation report PDF downloaded successfully!');
+    } catch (err: any) {
+      console.error('Failed to generate PDF directly, opening print preview:', err);
+      window.print();
+      addToast('info', 'Opening print preview for PDF save...');
+    }
   };
 
   // Export JSON

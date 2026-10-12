@@ -127,7 +127,8 @@ export async function synthesizeDeepgramAura(text: string, voice?: string): Prom
         'Authorization': `Token ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ text })
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(1800)
     });
 
     if (!response.ok) {

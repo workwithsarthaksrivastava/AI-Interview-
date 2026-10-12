@@ -37,9 +37,11 @@ export async function handleParseResume(req: any, res: any) {
   setCors(res);
   try {
     const body = parseBody(req);
-    const resumeText = body.resumeText || DEMO_CANDIDATE_RESUME;
+    const resumeText = body.resumeText || '';
+    const fileData = body.fileData || '';
+    const mimeType = body.mimeType || 'application/pdf';
     const fileName = body.fileName || 'resume.pdf';
-    const data = await parseResumeWithGemini(resumeText, fileName);
+    const data = await parseResumeWithGemini({ resumeText, fileData, mimeType, fileName });
     res.json({ success: true, data });
   } catch (error: any) {
     console.warn('[Resume Parser Handler] Fallback:', error?.message);

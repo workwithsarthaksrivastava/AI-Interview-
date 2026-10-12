@@ -41,7 +41,7 @@ export default function App() {
         {currentView === 'interview' && <LiveInterviewRoom />}
         {currentView === 'evaluating' && <EvaluatingScreen />}
         {currentView === 'report' && <EvaluationReportView />}
-        {currentView === 'candidate-dashboard' && <CandidateDashboard />}
+        {currentView === 'candidate-dashboard' && (!isUserAdmin(currentUser.email) ? <CandidateDashboard /> : <AdminAccessDenied />)}
         {currentView === 'admin' && (isUserAdmin(currentUser.email) ? <AdminLayout /> : <AdminAccessDenied />)}
       </main>
 

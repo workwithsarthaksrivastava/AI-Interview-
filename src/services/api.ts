@@ -15,12 +15,20 @@ import { createAdaptiveInterviewPlanFallback } from '../utils/planFallback';
 
 export const api = {
   // Resume Parsing with dual-layer resilient fallback
-  async parseResume(resumeText: string, fileName?: string): Promise<ParsedResume> {
+  async parseResume(
+    input: string | { resumeText?: string; fileData?: string; mimeType?: string; fileName?: string },
+    fileName?: string
+  ): Promise<ParsedResume> {
     try {
+      const payload =
+        typeof input === 'string'
+          ? { resumeText: input, fileName: fileName || 'resume.pdf' }
+          : { fileName: fileName || input.fileName || 'resume.pdf', ...input };
+
       const res = await fetch('/api/resume/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeText, fileName })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         const json = await res.json();
@@ -31,8 +39,9 @@ export const api = {
     } catch (err) {
       console.warn('[Resume API] Server request failed, activating client parser:', err);
     }
-    // Instant client-side parser fallback when backend route returns 404 or fails
-    return parseResumeHeuristically(resumeText, fileName);
+    const fallbackText = typeof input === 'string' ? input : (input.resumeText || '');
+    const fallbackName = typeof input === 'string' ? (fileName || 'resume.pdf') : (input.fileName || fileName || 'resume.pdf');
+    return parseResumeHeuristically(fallbackText, fallbackName);
   },
 
   // Plan Generation with resilient fallback

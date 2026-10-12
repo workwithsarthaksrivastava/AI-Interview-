@@ -414,11 +414,11 @@ export const LiveInterviewRoom: React.FC = () => {
     let turnSuccess = false;
     let turnResult: any = null;
 
-    while (attempts < 3 && !turnSuccess && !abortController.signal.aborted) {
+    while (attempts < 2 && !turnSuccess && !abortController.signal.aborted) {
       attempts++;
       try {
         if (attempts > 1) {
-          setErrorMessage(`Reconnecting... (attempt ${attempts}/3)`);
+          setErrorMessage(`Connecting...`);
         }
 
         turnResult = await api.sendSpeechTurn({
@@ -451,9 +451,10 @@ export const LiveInterviewRoom: React.FC = () => {
         }
       } catch (err: any) {
         if (abortController.signal.aborted) return;
-        console.warn(`[Turn Generation] Attempt ${attempts} error:`, err.message);
-        setErrorMessage('Reconnecting...');
-        await new Promise((r) => setTimeout(r, 1200));
+        console.warn(`[Turn Generation] Attempt ${attempts} notice:`, err.message);
+        if (attempts < 2) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
       }
     }
 
@@ -612,7 +613,7 @@ export const LiveInterviewRoom: React.FC = () => {
       clearTimeout(speechDebounceTimerRef.current);
     }
 
-    // 1.2s silence debounce
+    // 650ms snappy silence debounce for fast conversational responsiveness
     speechDebounceTimerRef.current = setTimeout(() => {
       const buffered = (bufferedCandidateTextRef.current.trim() || interimTranscriptRef.current.trim()).trim();
       if (!buffered) return;
@@ -639,7 +640,7 @@ export const LiveInterviewRoom: React.FC = () => {
       setInterimTranscript('');
       interimTranscriptRef.current = '';
       executeAiTurnRef.current(buffered);
-    }, 1200);
+    }, 650);
   }, [transitionEngineState]);
 
   // -------------------------------------------------------------
@@ -696,7 +697,7 @@ export const LiveInterviewRoom: React.FC = () => {
                 transitionEngineState('USER_SPEAKING');
               }
 
-              // Fallback timer for continuous interim speech: if speaker pauses for 2.2s without isFinal
+              // Fallback timer for continuous interim speech: if speaker pauses for 1.3s without isFinal
               if (interimSilenceTimerRef.current) {
                 clearTimeout(interimSilenceTimerRef.current);
               }
@@ -708,7 +709,7 @@ export const LiveInterviewRoom: React.FC = () => {
                   interimTranscriptRef.current = '';
                   executeAiTurnRef.current(text);
                 }
-              }, 2200);
+              }, 1300);
             }
           },
           onSpeechStarted: () => {

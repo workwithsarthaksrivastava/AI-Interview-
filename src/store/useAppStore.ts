@@ -173,8 +173,16 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   currentView: 'login',
   setCurrentView: (view) => {
-    if (view === 'admin' && !isUserAdmin(get().currentUser.email)) {
+    const email = get().currentUser.email;
+    const admin = isUserAdmin(email);
+
+    if (view === 'admin' && !admin) {
       get().addToast('error', `Access Denied: Only ${ADMIN_EMAIL} can access the Admin Console.`);
+      return;
+    }
+    
+    if (view === 'candidate-dashboard' && admin) {
+      get().addToast('error', 'Access Denied: Admin cannot view the Candidate Dashboard.');
       return;
     }
     set({ currentView: view });
