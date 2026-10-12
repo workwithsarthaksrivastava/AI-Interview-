@@ -27,45 +27,51 @@ export const GlassNavbar: React.FC = () => {
           onClick={() => setCurrentView('landing')}
           className="flex items-center gap-3 cursor-pointer group"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sage-400 to-sage-600 flex items-center justify-center shadow-md shadow-sage-900/40 text-white font-bold text-lg group-hover:scale-105 transition-transform">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sage-500 to-sage-700 flex items-center justify-center shadow-sm text-white font-bold text-sm tracking-tight group-hover:opacity-95 transition-opacity">
             S
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-base sm:text-lg tracking-tight text-text-primary">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-base tracking-tight text-text-primary">
                 Shakchhatkar
               </span>
-              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-sage-500/20 text-mint border border-sage-400/30">
-                Live AI
+              <span className="text-xs text-text-muted font-normal hidden sm:inline">
+                · Live Voice Interview
               </span>
             </div>
-            <p className="text-[11px] text-text-muted hidden sm:block">Real-Time Voice Mock Platform</p>
+            <p className="text-[11px] text-text-muted hidden md:block">Real-Time Technical & Behavioral Evaluation</p>
           </div>
         </div>
 
         {/* Center Nav items */}
-        <div className="hidden md:flex items-center gap-6 text-sm font-medium">
+        <div className="hidden md:flex items-center gap-7 text-sm font-medium">
           <button
             onClick={() => setCurrentView('wizard')}
-            className={`transition-colors hover:text-sage-300 ${
-              currentView === 'wizard' || currentView === 'lobby' ? 'text-sage-400 font-semibold' : 'text-text-secondary'
+            className={`transition-colors cursor-pointer ${
+              currentView === 'wizard' || currentView === 'lobby'
+                ? 'text-sage-300 font-semibold border-b border-sage-400 pb-0.5'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             Start Mock Interview
           </button>
           <button
             onClick={() => setCurrentView('candidate-dashboard')}
-            className={`transition-colors hover:text-sage-300 ${
-              currentView === 'candidate-dashboard' ? 'text-sage-400 font-semibold' : 'text-text-secondary'
+            className={`transition-colors cursor-pointer ${
+              currentView === 'candidate-dashboard'
+                ? 'text-sage-300 font-semibold border-b border-sage-400 pb-0.5'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
-            My Past Reports
+            Past Reports
           </button>
           {isUserAdmin(currentUser.email) && (
             <button
               onClick={() => setCurrentView('admin')}
-              className={`flex items-center gap-1.5 transition-colors hover:text-sage-300 ${
-                currentView === 'admin' ? 'text-sage-400 font-semibold' : 'text-text-secondary'
+              className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
+                currentView === 'admin'
+                  ? 'text-sage-300 font-semibold border-b border-sage-400 pb-0.5'
+                  : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               <Shield className="w-3.5 h-3.5" />

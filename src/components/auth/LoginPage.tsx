@@ -28,13 +28,13 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex flex-col items-center justify-center gap-1">
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text-primary">
                   Shakchhatkar
                 </h1>
-                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-sage-500/20 text-mint border border-sage-400/30">
-                  Live Voice AI
-                </span>
+                <p className="text-[11px] uppercase tracking-widest text-mint font-semibold">
+                  Live Voice Technical Mock Interviews
+                </p>
               </div>
               <p className="text-xs text-text-secondary mt-1.5 max-w-sm mx-auto leading-relaxed">
                 Practice two-way voice mock interviews with live barge-in interruptions, resume-tailored grilling, and hiring committee evaluations.

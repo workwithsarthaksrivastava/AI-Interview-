@@ -9,10 +9,11 @@ import { GlassButton } from '../common/GlassButton';
 import {
   Mic,
   Award,
-  Sparkles,
+  Flame,
   ArrowRight,
-  ShieldCheck,
-  Zap,
+  Fingerprint,
+  SlidersHorizontal,
+  Terminal,
   Building2,
   FileText,
   Code
@@ -46,7 +47,7 @@ export const LandingPage: React.FC = () => {
       <section className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-8">
         {/* Top Kicker */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sage-500/15 border border-sage-300/30 backdrop-blur-md">
-          <Sparkles className="w-3.5 h-3.5 text-gold animate-spin" />
+          <Flame className="w-3.5 h-3.5 text-gold animate-pulse" />
           <span className="text-xs font-semibold text-mint tracking-wide">
             Conversational Voice AI & Technical Interview Engine
           </span>
@@ -194,24 +195,30 @@ export const LandingPage: React.FC = () => {
       <section className="max-w-6xl mx-auto px-4 sm:px-6">
         <GlassCard className="p-8 sm:p-10 bg-gradient-to-r from-sage-950/70 via-sage-900/40 to-sage-950/70 border border-sage-400/30">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-            <div className="space-y-2">
-              <ShieldCheck className="w-6 h-6 text-mint" />
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-sage-500/20 border border-sage-300/30 flex items-center justify-center text-mint shadow-inner">
+                <Fingerprint className="w-5 h-5 text-mint" />
+              </div>
               <h4 className="font-bold text-sm text-text-primary">Strict Privacy Guarantee</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
                 Candidate audio and session data are stored securely and associated only with your account.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Zap className="w-6 h-6 text-gold" />
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center text-gold shadow-inner">
+                <SlidersHorizontal className="w-5 h-5 text-gold" />
+              </div>
               <h4 className="font-bold text-sm text-text-primary">Pre-Flight Lobby Calibration</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
                 Microphone frequency checks, speaker tests, and greeting calibration ensure optimal audio quality.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Code className="w-6 h-6 text-mint" />
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-sage-500/20 border border-sage-300/30 flex items-center justify-center text-mint shadow-inner">
+                <Terminal className="w-5 h-5 text-mint" />
+              </div>
               <h4 className="font-bold text-sm text-text-primary">Interactive Coding & Board</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
                 Discuss data structures, test edge cases, and run code while discussing Big-O complexity with the AI interviewer.
