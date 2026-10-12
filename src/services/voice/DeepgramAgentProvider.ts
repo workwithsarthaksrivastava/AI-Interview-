@@ -265,4 +265,12 @@ Rules:
     this.events?.onBargeIn?.();
     this.events?.onStateChange('listening');
   }
+
+  setMicMuted(muted: boolean): void {
+    if (this.mediaStream) {
+      this.mediaStream.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+    }
+  }
 }
