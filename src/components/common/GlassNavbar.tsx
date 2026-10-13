@@ -78,8 +78,8 @@ export const GlassNavbar: React.FC = () => {
         onClick={() => setIsMenuOpen((prev) => !prev)}
         className={`p-3 rounded-2xl border transition-all cursor-pointer shadow-lg backdrop-blur-md ${
           isMenuOpen
-            ? 'bg-sage-500/30 text-mint border-sage-400/40 shadow-sm'
-            : 'bg-sage-50/50 dark:bg-sage-950/50 border-sage-300/20 text-text-primary hover:bg-sage-500/15'
+            ? 'bg-sage-500/30 text-mint border-sage-300/80 dark:border-mint/60 shadow-[0_4px_14px_rgba(5,150,105,0.25),inset_0_1px_0_rgba(255,255,255,0.45)]'
+            : 'bg-sage-50/50 dark:bg-sage-950/50 border-sage-300/80 dark:border-sage-500/50 text-text-primary hover:bg-sage-500/15 shadow-[0_4px_14px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]'
         }`}
         title={isMenuOpen ? 'Close Menu' : 'Open Menu'}
         aria-label={isMenuOpen ? 'Close Menu' : 'Open Menu'}
@@ -140,7 +140,7 @@ export const GlassNavbar: React.FC = () => {
               </div>
               <button
                 onClick={() => handleNavClick('login')}
-                className="px-3 py-1.5 rounded-lg bg-sage-500/25 hover:bg-sage-500/35 border border-sage-400/40 text-xs font-semibold text-mint flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg bg-gradient-to-b from-sage-600 to-sage-700 text-white border border-sage-300/80 dark:border-mint/50 shadow-[0_2px_8px_rgba(40,55,35,0.25),inset_0_1px_0_rgba(255,255,255,0.4)] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 Sign In
@@ -228,10 +228,10 @@ export const GlassNavbar: React.FC = () => {
                   onClick={() => {
                     switchUserRole('candidate');
                   }}
-                  className={`py-1.5 text-xs font-medium rounded-lg text-center transition-all ${
+                  className={`py-1.5 text-xs font-medium rounded-lg text-center transition-all cursor-pointer ${
                     currentUser.role === 'candidate'
-                      ? 'bg-sage-600/70 text-white shadow-sm'
-                      : 'text-text-muted hover:text-text-primary'
+                      ? 'bg-sage-600 text-white border border-sage-300/80 shadow-[0_2px_8px_rgba(40,55,35,0.25),inset_0_1px_0_rgba(255,255,255,0.4)] font-semibold'
+                      : 'text-text-muted hover:text-text-primary border border-transparent hover:border-sage-300/30'
                   }`}
                 >
                   Candidate View
@@ -241,10 +241,10 @@ export const GlassNavbar: React.FC = () => {
                     switchUserRole('admin');
                     handleNavClick('admin');
                   }}
-                  className={`py-1.5 text-xs font-medium rounded-lg text-center transition-all ${
+                  className={`py-1.5 text-xs font-medium rounded-lg text-center transition-all cursor-pointer ${
                     currentUser.role === 'admin'
-                      ? 'bg-sage-600/70 text-white shadow-sm'
-                      : 'text-text-muted hover:text-text-primary'
+                      ? 'bg-sage-600 text-white border border-sage-300/80 shadow-[0_2px_8px_rgba(40,55,35,0.25),inset_0_1px_0_rgba(255,255,255,0.4)] font-semibold'
+                      : 'text-text-muted hover:text-text-primary border border-transparent hover:border-sage-300/30'
                   }`}
                 >
                   Admin Console

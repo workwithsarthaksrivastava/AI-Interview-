@@ -194,10 +194,10 @@ export const EvaluationReportView: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
               activeTab === tab.id
-                ? 'bg-sage-500/25 text-mint font-bold border border-sage-400/30'
-                : 'text-text-secondary hover:text-text-primary hover:bg-sage-500/10'
+                ? 'bg-sage-500/25 text-mint font-bold border border-sage-300/80 dark:border-mint/60 shadow-[0_2px_8px_rgba(40,55,35,0.15),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                : 'text-text-secondary hover:text-text-primary hover:bg-sage-500/10 border border-transparent hover:border-sage-300/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]'
             }`}
           >
             {tab.label}

@@ -142,10 +142,10 @@ export const Step3RoleSelect: React.FC = () => {
                   key={t}
                   type="button"
                   onClick={() => setInterviewType(t)}
-                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all ${
+                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all cursor-pointer ${
                     interviewType === t
-                      ? 'bg-sage-500/25 border-sage-400 text-text-primary font-semibold shadow-sm'
-                      : 'bg-sage-950/30 border-sage-300/15 text-text-secondary hover:border-sage-300/30'
+                      ? 'bg-sage-500/25 border-sage-300/80 dark:border-sage-300/50 text-text-primary font-semibold shadow-[0_2px_8px_rgba(40,55,35,0.15),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                      : 'bg-white dark:bg-sage-950/40 border-sage-300/40 dark:border-sage-700/40 text-text-secondary hover:border-sage-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   }`}
                 >
                   {t}
@@ -166,10 +166,10 @@ export const Step3RoleSelect: React.FC = () => {
                   key={d}
                   type="button"
                   onClick={() => setDifficulty(d)}
-                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all ${
+                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all cursor-pointer ${
                     difficulty === d
-                      ? 'bg-sage-500/25 border-sage-400 text-text-primary font-semibold shadow-sm'
-                      : 'bg-sage-950/30 border-sage-300/15 text-text-secondary hover:border-sage-300/30'
+                      ? 'bg-sage-500/25 border-sage-300/80 dark:border-sage-300/50 text-text-primary font-semibold shadow-[0_2px_8px_rgba(40,55,35,0.15),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                      : 'bg-white dark:bg-sage-950/40 border-sage-300/40 dark:border-sage-700/40 text-text-secondary hover:border-sage-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   }`}
                 >
                   {d}
@@ -190,10 +190,10 @@ export const Step3RoleSelect: React.FC = () => {
                   key={m}
                   type="button"
                   onClick={() => setDurationMinutes(m)}
-                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all ${
+                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all cursor-pointer ${
                     durationMinutes === m
-                      ? 'bg-sage-500/25 border-sage-400 text-text-primary font-semibold shadow-sm'
-                      : 'bg-sage-950/30 border-sage-300/15 text-text-secondary hover:border-sage-300/30'
+                      ? 'bg-sage-500/25 border-sage-300/80 dark:border-sage-300/50 text-text-primary font-semibold shadow-[0_2px_8px_rgba(40,55,35,0.15),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                      : 'bg-white dark:bg-sage-950/40 border-sage-300/40 dark:border-sage-700/40 text-text-secondary hover:border-sage-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   }`}
                 >
                   {m} Minutes
@@ -214,10 +214,10 @@ export const Step3RoleSelect: React.FC = () => {
                   key={l}
                   type="button"
                   onClick={() => setLanguage(l)}
-                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all ${
+                  className={`px-3 py-2 text-xs rounded-xl text-left border transition-all cursor-pointer ${
                     language === l
-                      ? 'bg-sage-500/25 border-sage-400 text-text-primary font-semibold shadow-sm'
-                      : 'bg-sage-950/30 border-sage-300/15 text-text-secondary hover:border-sage-300/30'
+                      ? 'bg-sage-500/25 border-sage-300/80 dark:border-sage-300/50 text-text-primary font-semibold shadow-[0_2px_8px_rgba(40,55,35,0.15),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                      : 'bg-white dark:bg-sage-950/40 border-sage-300/40 dark:border-sage-700/40 text-text-secondary hover:border-sage-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   }`}
                 >
                   {l}

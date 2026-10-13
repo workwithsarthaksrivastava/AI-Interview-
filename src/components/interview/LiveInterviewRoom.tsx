@@ -1152,7 +1152,7 @@ export const LiveInterviewRoom: React.FC = () => {
                   setErrorMessage('');
                   executeAiTurn('Could you repeat the question please?', { requestedRepeat: true });
                 }}
-                className="ml-2 px-2 py-0.5 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                className="ml-2 px-2.5 py-1 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint border border-emerald-300/80 dark:border-mint/60 shadow-[0_2px_6px_rgba(5,150,105,0.2),inset_0_1px_0_rgba(255,255,255,0.35)] text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer"
               >
                 <RefreshCw className="w-3 h-3" /> Retry Turn
               </button>
@@ -1160,7 +1160,7 @@ export const LiveInterviewRoom: React.FC = () => {
             {silenceWarning && (
               <button
                 onClick={handleRetryMic}
-                className="ml-2 px-2 py-0.5 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                className="ml-2 px-2.5 py-1 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint border border-emerald-300/80 dark:border-mint/60 shadow-[0_2px_6px_rgba(5,150,105,0.2),inset_0_1px_0_rgba(255,255,255,0.35)] text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer"
               >
                 <RefreshCw className="w-3 h-3" /> Retry Mic
               </button>
@@ -1183,7 +1183,7 @@ export const LiveInterviewRoom: React.FC = () => {
 
             <button
               onClick={submitCandidateAnswerNow}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-mint to-teal-400 hover:from-mint-light hover:to-teal-300 text-sage-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-mint/25 cursor-pointer active:scale-95 transition-all"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-mint to-teal-400 hover:from-mint-light hover:to-teal-300 text-sage-950 font-extrabold text-xs flex items-center gap-2 border border-white/85 shadow-[0_4px_14px_rgba(20,184,166,0.35),inset_0_1px_0_rgba(255,255,255,0.85)] cursor-pointer active:scale-95 transition-all"
             >
               <Send className="w-3.5 h-3.5" />
               <span>I'm Done Speaking · Submit Response</span>
@@ -1291,7 +1291,7 @@ export const LiveInterviewRoom: React.FC = () => {
             />
             <button
               onClick={handleSendText}
-              className="p-2 rounded-xl bg-sage-500 hover:bg-sage-600 text-white transition-colors"
+              className="p-2 rounded-xl bg-sage-500 hover:bg-sage-600 text-white border border-sage-300/80 shadow-[0_2px_8px_rgba(40,55,35,0.25),inset_0_1px_0_rgba(255,255,255,0.4)] transition-all cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
@@ -1306,8 +1306,8 @@ export const LiveInterviewRoom: React.FC = () => {
               onClick={toggleMute}
               className={`px-3 py-2 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
                 isMuted
-                  ? 'bg-status-error/20 border-status-error text-status-error hover:bg-status-error/30'
-                  : 'bg-sage-500/15 border-sage-300/20 text-mint hover:bg-sage-500/25'
+                  ? 'bg-status-error/20 border-red-400/80 text-status-error hover:bg-status-error/30 shadow-[0_2px_8px_rgba(220,38,38,0.25),inset_0_1px_0_rgba(255,255,255,0.35)]'
+                  : 'bg-sage-500/15 border-sage-300/70 dark:border-mint/60 text-mint hover:bg-sage-500/25 shadow-[0_2px_8px_rgba(5,150,105,0.2),inset_0_1px_0_rgba(255,255,255,0.35)]'
               }`}
               title={isMuted ? 'Unmute microphone (Press M)' : 'Mute microphone (Press M)'}
             >
@@ -1318,10 +1318,10 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Camera toggle */}
             <button
               onClick={toggleLiveCamera}
-              className={`p-2.5 rounded-xl border transition-all ${
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
                 isCameraActive
-                  ? 'bg-sage-500/15 border-sage-300/20 text-mint hover:bg-sage-500/25'
-                  : 'bg-status-error/20 border-status-error text-status-error'
+                  ? 'bg-sage-500/15 border-sage-300/70 dark:border-mint/60 text-mint hover:bg-sage-500/25 shadow-[0_2px_8px_rgba(5,150,105,0.2),inset_0_1px_0_rgba(255,255,255,0.35)]'
+                  : 'bg-status-error/20 border-red-400/80 text-status-error shadow-[0_2px_8px_rgba(220,38,38,0.25),inset_0_1px_0_rgba(255,255,255,0.35)]'
               }`}
               title={isCameraActive ? 'Turn off camera' : 'Turn on camera'}
             >
@@ -1332,7 +1332,7 @@ export const LiveInterviewRoom: React.FC = () => {
             <button
               onClick={handleRequestHint}
               disabled={engineState === 'PROCESSING'}
-              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/20 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/60 dark:border-sage-400/50 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-[0_2px_8px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.25)] cursor-pointer"
               title="Request a subtle hint from AI"
             >
               <HelpCircle className="w-3.5 h-3.5 text-gold" />
@@ -1343,7 +1343,7 @@ export const LiveInterviewRoom: React.FC = () => {
             <button
               onClick={handleRepeatQuestion}
               disabled={engineState === 'PROCESSING'}
-              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/20 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              className="px-3 py-2 rounded-xl bg-sage-950/40 hover:bg-sage-500/15 border border-sage-300/60 dark:border-sage-400/50 text-text-secondary hover:text-text-primary text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-[0_2px_8px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.25)] cursor-pointer"
               title="Ask AI to repeat the question"
             >
               <RotateCcw className="w-3.5 h-3.5 text-sage-300" />
@@ -1354,7 +1354,7 @@ export const LiveInterviewRoom: React.FC = () => {
             <button
               onClick={handleChallengeMe}
               disabled={engineState === 'PROCESSING'}
-              className="px-3 py-2 rounded-xl bg-gold/15 hover:bg-gold/25 border border-gold/30 text-gold-light text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-sm"
+              className="px-3 py-2 rounded-xl bg-gold/15 hover:bg-gold/25 border border-gold/80 dark:border-gold-light/70 text-gold-light text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-[0_3px_10px_rgba(234,179,8,0.25),inset_0_1px_0_rgba(255,255,255,0.45)] cursor-pointer"
               title="Ask AI interviewer for a tough, creative bar-raiser challenge"
             >
               <Zap className="w-3.5 h-3.5 text-gold animate-pulse" />
@@ -1367,10 +1367,10 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Code Editor */}
             <button
               onClick={() => setActiveRoomTool(activeRoomTool === 'code' ? 'none' : 'code')}
-              className={`p-2 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all ${
+              className={`p-2 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeRoomTool === 'code'
-                  ? 'bg-mint/20 border-mint/40 text-mint shadow-sm'
-                  : 'bg-sage-950/40 border-sage-300/20 text-text-secondary hover:text-text-primary hover:bg-sage-500/15'
+                  ? 'bg-mint/20 border-emerald-400/80 dark:border-mint/80 text-mint shadow-[0_3px_10px_rgba(5,150,105,0.25),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                  : 'bg-sage-950/40 border-sage-300/50 text-text-secondary hover:text-text-primary hover:bg-sage-500/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
               }`}
               title="Open Live Code Editor"
             >
@@ -1381,10 +1381,10 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Whiteboard */}
             <button
               onClick={() => setActiveRoomTool(activeRoomTool === 'whiteboard' ? 'none' : 'whiteboard')}
-              className={`p-2 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all ${
+              className={`p-2 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeRoomTool === 'whiteboard'
-                  ? 'bg-mint/20 border-mint/40 text-mint shadow-sm'
-                  : 'bg-sage-950/40 border-sage-300/20 text-text-secondary hover:text-text-primary hover:bg-sage-500/15'
+                  ? 'bg-mint/20 border-emerald-400/80 dark:border-mint/80 text-mint shadow-[0_3px_10px_rgba(5,150,105,0.25),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                  : 'bg-sage-950/40 border-sage-300/50 text-text-secondary hover:text-text-primary hover:bg-sage-500/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
               }`}
               title="Open System Design Whiteboard"
             >
@@ -1395,10 +1395,10 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Captions Toggle */}
             <button
               onClick={() => setShowCaptions(!showCaptions)}
-              className={`p-2 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all ${
+              className={`p-2 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
                 showCaptions
-                  ? 'bg-sage-500/25 border-sage-400 text-text-primary'
-                  : 'bg-sage-950/40 border-sage-300/20 text-text-muted hover:text-text-primary'
+                  ? 'bg-sage-500/25 border-sage-300/75 text-text-primary shadow-[0_2px_8px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.35)]'
+                  : 'bg-sage-950/40 border-sage-300/40 text-text-muted hover:text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
               }`}
               title="Toggle Transcript Panel"
             >
@@ -1409,10 +1409,10 @@ export const LiveInterviewRoom: React.FC = () => {
             {/* Text Mode */}
             <button
               onClick={() => setIsTextMode(!isTextMode)}
-              className={`px-2.5 py-1.5 rounded-xl border text-xs transition-colors ${
+              className={`px-2.5 py-1.5 rounded-xl border text-xs transition-colors cursor-pointer ${
                 isTextMode
-                  ? 'bg-gold/20 border-gold/40 text-gold-light'
-                  : 'text-text-muted hover:text-text-primary border-transparent'
+                  ? 'bg-gold/20 border-gold/70 text-gold-light shadow-[0_2px_8px_rgba(234,179,8,0.2),inset_0_1px_0_rgba(255,255,255,0.35)]'
+                  : 'text-text-muted hover:text-text-primary border-sage-300/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]'
               }`}
               title="Toggle Text Input Fallback"
             >
@@ -1424,7 +1424,7 @@ export const LiveInterviewRoom: React.FC = () => {
           <div>
             <button
               onClick={() => setShowEndModal(true)}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-status-error/80 to-status-error text-white font-semibold text-xs flex items-center gap-1.5 shadow-md hover:brightness-110 active:scale-95 transition-all"
+              className="px-4 py-2 rounded-xl bg-gradient-to-b from-red-600 to-red-700 text-white font-semibold text-xs flex items-center gap-1.5 border border-red-300/90 dark:border-red-400/80 shadow-[0_4px_14px_rgba(220,38,38,0.35),inset_0_1px_0_rgba(255,255,255,0.45)] hover:from-red-500 hover:to-red-600 active:scale-95 transition-all cursor-pointer"
             >
               <PhoneOff className="w-3.5 h-3.5" />
               <span>End Call</span>

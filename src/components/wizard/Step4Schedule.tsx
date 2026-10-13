@@ -238,10 +238,10 @@ export const Step4Schedule: React.FC = () => {
                         key={slot}
                         type="button"
                         onClick={() => setScheduledSlot(slot)}
-                        className={`px-3 py-2 text-xs rounded-xl border text-center transition-all ${
+                        className={`px-3 py-2 text-xs rounded-xl border text-center transition-all cursor-pointer ${
                           scheduledSlot === slot
-                            ? 'bg-sage-500/25 border-sage-400 text-text-primary font-bold'
-                            : 'bg-sage-950/30 border-sage-300/15 text-text-secondary hover:border-sage-300/30'
+                            ? 'bg-sage-500/25 border-sage-300/80 dark:border-sage-300/50 text-text-primary font-bold shadow-[0_2px_8px_rgba(40,55,35,0.15),inset_0_1px_0_rgba(255,255,255,0.4)]'
+                            : 'bg-white dark:bg-sage-950/40 border-sage-300/40 dark:border-sage-700/40 text-text-secondary hover:border-sage-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                         }`}
                       >
                         {slot}

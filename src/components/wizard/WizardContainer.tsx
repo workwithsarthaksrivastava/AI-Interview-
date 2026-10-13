@@ -21,12 +21,12 @@ export const WizardContainer: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-8">
       {/* Stepper Header */}
-      <div className="rounded-2xl glass-2 p-3 sm:p-4 border border-sage-300/20 shadow-md">
+      <div className="rounded-2xl glass-2 p-3 sm:p-5 border border-sage-300/20 shadow-md">
         <div className="flex items-center justify-between relative">
-          {/* Background Sage Progress Line */}
-          <div className="absolute top-1/2 left-6 right-6 -translate-y-1/2 h-0.5 bg-sage-950/50 z-0">
+          {/* Background Progress Track */}
+          <div className="absolute top-4.5 sm:top-5 left-8 right-8 -translate-y-1/2 h-1 bg-sage-200 dark:bg-sage-800/80 rounded-full z-0 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-sage-500 via-mint to-sage-400 transition-all duration-300"
+              className="h-full bg-gradient-to-r from-sage-500 via-emerald-500 to-mint rounded-full transition-all duration-300"
               style={{ width: `${((wizardStep - 1) / (steps.length - 1)) * 100}%` }}
             />
           </div>
@@ -43,28 +43,26 @@ export const WizardContainer: React.FC = () => {
                 onClick={() => {
                   if (s.number <= wizardStep) setWizardStep(s.number);
                 }}
-                className={`relative z-10 flex flex-col items-center gap-1.5 transition-all ${
-                  isCurrent ? 'scale-105' : ''
-                }`}
+                className="relative z-10 flex flex-col items-center gap-2 group cursor-pointer focus-visible:outline-none"
               >
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs transition-all shadow-md ${
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-150 select-none ${
                     isCurrent
-                      ? 'bg-sage-500 text-white border-2 border-sage-300 ring-4 ring-sage-500/20 shadow-sage-900/50'
+                      ? 'bg-gradient-to-b from-sage-600 to-sage-700 text-white border border-sage-300/90 dark:border-sage-300/50 shadow-[0_4px_12px_rgba(40,55,35,0.35),inset_0_1px_0_rgba(255,255,255,0.45)] scale-110'
                       : isCompleted
-                      ? 'bg-sage-600/60 text-mint border border-mint/30'
-                      : 'bg-sage-950/80 text-text-muted border border-sage-300/15'
+                      ? 'bg-gradient-to-b from-emerald-600 to-emerald-700 dark:from-emerald-700 dark:to-emerald-800 text-white border border-emerald-300/80 dark:border-mint/60 shadow-[0_2px_8px_rgba(5,150,105,0.25),inset_0_1px_0_rgba(255,255,255,0.35)] hover:scale-105'
+                      : 'bg-white dark:bg-sage-900/70 text-text-secondary dark:text-text-muted border border-sage-300/70 dark:border-sage-700/60 shadow-[0_1px_3px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.85)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] group-hover:border-sage-400'
                   }`}
                 >
                   {isCompleted ? '✓' : s.number}
                 </div>
                 <span
-                  className={`text-[11px] font-medium hidden sm:block ${
+                  className={`text-[11px] sm:text-xs transition-colors hidden sm:block ${
                     isCurrent
                       ? 'text-text-primary font-bold'
                       : isCompleted
-                      ? 'text-text-secondary'
-                      : 'text-text-muted'
+                      ? 'text-emerald-800 dark:text-mint font-semibold'
+                      : 'text-text-muted font-medium'
                   }`}
                 >
                   {s.label}

@@ -26,15 +26,15 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
 
   const variantClasses = {
     primary:
-      'bg-gradient-to-r from-sage-600 to-sage-700 dark:from-sage-500 dark:to-sage-600 text-white shadow-lg shadow-sage-900/40 hover:from-sage-500 hover:to-sage-600 hover:shadow-sage-700/50 active:scale-[0.97] border border-sage-500/50 font-semibold',
+      'bg-gradient-to-b from-sage-600 to-sage-700 dark:from-sage-500 dark:to-sage-600 text-white border border-sage-300/85 dark:border-sage-300/60 shadow-[0_4px_14px_rgba(40,55,35,0.28),inset_0_1px_0_rgba(255,255,255,0.45)] hover:from-sage-500 hover:to-sage-600 hover:border-sage-200/90 hover:shadow-sage-700/50 active:scale-[0.97] font-semibold',
     secondary:
-      'bg-white dark:bg-sage-400/10 hover:bg-sage-50 dark:hover:bg-sage-400/20 text-text-primary border border-sage-500/40 active:scale-[0.97] font-semibold shadow-sm',
+      'bg-white dark:bg-sage-900/70 hover:bg-sage-50 dark:hover:bg-sage-800/70 text-text-primary border border-sage-300/80 dark:border-sage-400/50 shadow-[0_2px_8px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] hover:border-sage-400/90 active:scale-[0.97] font-semibold',
     danger:
-      'bg-gradient-to-r from-status-error/80 to-status-error text-white hover:brightness-110 active:scale-[0.97] border border-red-400/30 shadow-md',
+      'bg-gradient-to-b from-red-600 to-red-700 text-white hover:from-red-500 hover:to-red-600 active:scale-[0.97] border border-red-300/90 dark:border-red-400/80 shadow-[0_4px_14px_rgba(220,38,38,0.28),inset_0_1px_0_rgba(255,255,255,0.45)] hover:border-red-200 font-semibold',
     ghost:
-      'bg-transparent hover:bg-sage-500/15 dark:hover:bg-sage-500/15 text-text-primary hover:text-text-primary active:scale-[0.97] font-semibold',
+      'bg-transparent hover:bg-sage-500/15 text-text-primary hover:text-text-primary active:scale-[0.97] border border-sage-300/35 hover:border-sage-300/70 dark:border-sage-500/30 dark:hover:border-sage-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] font-semibold',
     mint:
-      'bg-white dark:bg-emerald-950/70 hover:bg-emerald-50/70 dark:hover:bg-emerald-900/80 text-emerald-950 dark:text-emerald-200 border-2 border-emerald-800/70 dark:border-emerald-500/50 active:scale-[0.97] font-bold shadow-sm'
+      'bg-gradient-to-b from-emerald-600 to-emerald-700 dark:from-emerald-700 dark:to-emerald-800 text-white hover:from-emerald-500 hover:to-emerald-600 active:scale-[0.97] border border-emerald-300/90 dark:border-mint/80 shadow-[0_4px_14px_rgba(5,150,105,0.28),inset_0_1px_0_rgba(255,255,255,0.5)] hover:border-emerald-200 font-bold'
   };
 
   return (

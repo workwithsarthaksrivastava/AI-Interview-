@@ -47,7 +47,7 @@ export const LoginPage: React.FC = () => {
             <button
               onClick={loginWithGoogleAction}
               disabled={isFirebaseAuthLoading}
-              className="w-full py-3.5 px-5 rounded-2xl bg-bg-surface hover:bg-sage-100 text-text-primary font-semibold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-border-subtle active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+              className="w-full py-3.5 px-5 rounded-2xl bg-bg-surface hover:bg-sage-100 dark:hover:bg-sage-900/60 text-text-primary font-semibold text-sm transition-all flex items-center justify-center gap-3 border border-sage-300/80 dark:border-sage-500/50 shadow-[0_4px_14px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
             >
               {isFirebaseAuthLoading ? (
                 <div className="w-5 h-5 border-2 border-sage-300 border-t-sage-600 rounded-full animate-spin" />

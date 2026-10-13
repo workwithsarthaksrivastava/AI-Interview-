@@ -190,7 +190,51 @@ h1, h2, h3, h4, h5, h6 {
   .bg-bg-base { background-color: var(--bg-base); }
   .bg-bg-surface { background-color: var(--bg-surface); }
   .border-subtle { border-color: var(--border-subtle); }
+
+  /* Universal button tactile depth and color-matched specular light border */
+  .btn-depth-mint {
+    border: 1px solid rgba(110, 231, 183, 0.85);
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  .btn-depth-sage {
+    border: 1px solid rgba(178, 200, 170, 0.8);
+    box-shadow: 0 4px 14px rgba(40, 55, 35, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  }
+  .btn-depth-gold {
+    border: 1px solid rgba(253, 224, 71, 0.85);
+    box-shadow: 0 4px 14px rgba(202, 138, 4, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  .btn-depth-danger {
+    border: 1px solid rgba(252, 165, 165, 0.85);
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+  .btn-depth-neutral {
+    border: 1px solid rgba(203, 213, 225, 0.75);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
 }
+
+.dark .btn-depth-mint {
+  border-color: rgba(167, 243, 208, 0.75);
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.dark .btn-depth-sage {
+  border-color: rgba(178, 200, 170, 0.55);
+  box-shadow: 0 4px 14px rgba(20, 30, 18, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.dark .btn-depth-gold {
+  border-color: rgba(254, 240, 138, 0.75);
+  box-shadow: 0 4px 14px rgba(202, 138, 4, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.dark .btn-depth-danger {
+  border-color: rgba(248, 113, 113, 0.75);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.dark .btn-depth-neutral {
+  border-color: rgba(178, 200, 170, 0.4);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
 @keyframes blob-drift-1 {
   0%, 100% {
     transform: translate(0px, 0px) scale(1);
@@ -236,10 +280,153 @@ h1, h2, h3, h4, h5, h6 {
   animation: blob-drift-3 20s ease-in-out infinite;
 }
 
+/* Sound Wave Propagation & Orb Shimmer Animations */
+@keyframes soundwave-pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  40% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes soundwave-pulse-ring-wide {
+  0% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  45% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(3.8);
+    opacity: 0;
+  }
+}
+
+@keyframes soundwave-pulse-ring-ultra {
+  0% {
+    transform: scale(1.1);
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.18;
+  }
+  100% {
+    transform: scale(5.4);
+    opacity: 0;
+  }
+}
+
+@keyframes orb-sheen-sweep {
+  0% {
+    transform: translateX(-150%) rotate(25deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.65;
+  }
+  30% {
+    opacity: 0.65;
+  }
+  45% {
+    transform: translateX(160%) rotate(25deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(160%) rotate(25deg);
+    opacity: 0;
+  }
+}
+
+@keyframes soundwave-flow-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes soundwave-flow-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes soundwave-sine-ripple {
+  0%, 100% {
+    transform: scaleY(0.85) scaleX(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scaleY(1.25) scaleX(1.05);
+    opacity: 0.95;
+  }
+}
+
+.animate-soundwave-ring-1 {
+  animation: soundwave-pulse-ring 4s cubic-bezier(0.12, 0.8, 0.25, 1) infinite;
+}
+
+.animate-soundwave-ring-2 {
+  animation: soundwave-pulse-ring 4s cubic-bezier(0.12, 0.8, 0.25, 1) 1.33s infinite;
+}
+
+.animate-soundwave-ring-3 {
+  animation: soundwave-pulse-ring 4s cubic-bezier(0.12, 0.8, 0.25, 1) 2.66s infinite;
+}
+
+.animate-soundwave-ring-wide-1 {
+  animation: soundwave-pulse-ring-wide 6s cubic-bezier(0.1, 0.7, 0.2, 1) infinite;
+}
+
+.animate-soundwave-ring-wide-2 {
+  animation: soundwave-pulse-ring-wide 6s cubic-bezier(0.1, 0.7, 0.2, 1) 3s infinite;
+}
+
+.animate-soundwave-ring-ultra {
+  animation: soundwave-pulse-ring-ultra 8s cubic-bezier(0.08, 0.6, 0.2, 1) 1.5s infinite;
+}
+
+.animate-orb-sheen {
+  animation: orb-sheen-sweep 5s ease-in-out infinite;
+}
+
+.animate-soundwave-left {
+  animation: soundwave-flow-left 14s linear infinite;
+}
+
+.animate-soundwave-right {
+  animation: soundwave-flow-right 14s linear infinite;
+}
+
+.animate-soundwave-sine {
+  animation: soundwave-sine-ripple 3s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-blob-1,
   .animate-blob-2,
-  .animate-blob-3 {
+  .animate-blob-3,
+  .animate-soundwave-ring-1,
+  .animate-soundwave-ring-2,
+  .animate-soundwave-ring-3,
+  .animate-soundwave-ring-wide-1,
+  .animate-soundwave-ring-wide-2,
+  .animate-soundwave-ring-ultra,
+  .animate-orb-sheen,
+  .animate-soundwave-left,
+  .animate-soundwave-right,
+  .animate-soundwave-sine {
     animation: none !important;
   }
   body,

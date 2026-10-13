@@ -730,7 +730,7 @@ export const Step5LobbyCalibration: React.FC = () => {
                     <button
                       type="button"
                       onClick={finishListeningAndTranscribe}
-                      className="px-2.5 py-1 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint border border-mint/40 font-semibold text-[11px] transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint border border-emerald-300/80 dark:border-mint/60 shadow-[0_2px_8px_rgba(5,150,105,0.2),inset_0_1px_0_rgba(255,255,255,0.35)] font-semibold text-[11px] transition-colors cursor-pointer"
                     >
                       I'm Done Speaking
                     </button>

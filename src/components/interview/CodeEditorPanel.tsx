@@ -124,7 +124,7 @@ export const CodeEditorPanel: React.FC<CodeEditorPanelProps> = ({ onClose, onSyn
 
           <button
             onClick={handleRunMock}
-            className="px-4 py-2 rounded-xl bg-sage-500 hover:bg-sage-600 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-sage-900/50"
+            className="px-4 py-2 rounded-xl bg-gradient-to-b from-sage-600 to-sage-700 dark:from-sage-500 dark:to-sage-600 hover:from-sage-500 hover:to-sage-600 text-white font-medium text-xs flex items-center gap-1.5 border border-sage-300/80 dark:border-sage-300/50 shadow-[0_4px_12px_rgba(40,55,35,0.25),inset_0_1px_0_rgba(255,255,255,0.35)] active:scale-95 transition-all cursor-pointer"
           >
             <Play className="w-3.5 h-3.5" />
             Run & Discuss with AI

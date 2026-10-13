@@ -4,6 +4,7 @@ import { DEMO_EVALUATION_REPORT, SEED_COMPANIES } from '../../data/seedData';
 import { api } from '../../services/api';
 import { Company } from '../../types';
 import { VoiceOrb } from '../common/VoiceOrb';
+import { HarmonicSoundWave } from '../common/HarmonicSoundWave';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import {
@@ -59,11 +60,30 @@ export const LandingPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Centerpiece Voice Orb with Real Feature Badges */}
-        <div className="relative py-6 flex items-center justify-center">
-          <VoiceOrb state="speaking" audioLevel={65} size={210} subtext="Real-time conversational voice audio" />
+        {/* Centerpiece Voice Orb with Continuous Propagating Sound Waves Across Landing Page */}
+        <div className="relative py-12 flex items-center justify-center overflow-visible">
+          {/* Expansive Acoustic Wave Field Propagating Across the Landing Page */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible -z-0" aria-hidden="true">
+            {/* Phased Concentric Wavefronts Radiating into the Page */}
+            <div className="absolute w-[360px] h-[360px] rounded-full border border-emerald-500/35 dark:border-mint/40 animate-soundwave-ring-1" />
+            <div className="absolute w-[520px] h-[520px] rounded-full border border-emerald-500/30 dark:border-mint/35 animate-soundwave-ring-2" />
+            <div className="absolute w-[720px] h-[720px] rounded-full border border-emerald-500/25 dark:border-mint/30 animate-soundwave-ring-3" />
+            <div className="absolute w-[980px] h-[980px] rounded-full border border-emerald-500/20 dark:border-mint/25 animate-soundwave-ring-wide-1" />
+            <div className="absolute w-[1300px] h-[1300px] rounded-full border border-emerald-500/15 dark:border-mint/20 animate-soundwave-ring-ultra" />
 
+            {/* Radiant Sound Aura Beam Center */}
+            <div className="absolute w-[440px] h-[440px] rounded-full bg-gradient-to-r from-emerald-500/20 via-mint/25 to-emerald-500/20 blur-3xl pointer-events-none" />
+          </div>
 
+          {/* Full-width CONTINUOUS Harmonic Sound Wave flowing through the Orb without ANY gap */}
+          <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-screen max-w-[100vw] pointer-events-none z-0 overflow-visible flex items-center justify-center">
+            <HarmonicSoundWave height={280} audioLevel={70} className="w-full opacity-90" />
+          </div>
+
+          {/* Center Voice Orb with Polished 3D Glass Surface */}
+          <div className="relative z-10">
+            <VoiceOrb state="speaking" audioLevel={68} size={228} subtext="Real-time conversational voice audio" />
+          </div>
         </div>
 
         {/* Hero CTA Button Cluster */}
