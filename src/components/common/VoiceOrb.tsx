@@ -8,6 +8,8 @@ interface VoiceOrbProps {
   size?: number; // in pixels
   className?: string;
   subtext?: string;
+  showStatus?: boolean;
+  showStatusBadge?: boolean;
 }
 
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({
@@ -15,7 +17,9 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
   audioLevel = 0,
   size = 220,
   className = '',
-  subtext
+  subtext,
+  showStatus = true,
+  showStatusBadge = true
 }) => {
   // Pure dynamic audio reactivity without state update loops
   const pulse =
@@ -50,99 +54,119 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
         }}
       />
 
-      {/* Subtle harmonic presence rings */}
+      {/* Concentric ripple rings */}
       {(state === 'listening' || state === 'speaking') && (
+        <>
+          <div
+            className="absolute rounded-full border border-mint/30 animate-ping opacity-30 pointer-events-none"
+            style={{
+              width: size * 1.35,
+              height: size * 1.35,
+              animationDuration: state === 'speaking' ? '2.4s' : '3.2s'
+            }}
+          />
+          <div
+            className="absolute rounded-full border border-sage-300/20 animate-ping opacity-20 pointer-events-none"
+            style={{
+              width: size * 1.7,
+              height: size * 1.7,
+              animationDuration: '3.6s'
+            }}
+          />
+        </>
+      )}
+
+      {/* Rotating shimmer ring for 'thinking' */}
+      {state === 'thinking' && (
         <div
-          className="absolute rounded-full border border-sage-400/25 transition-all duration-300 pointer-events-none"
+          className="absolute rounded-full border border-dashed border-gold/40 animate-spin pointer-events-none"
           style={{
-            width: size * (1.15 + (Math.max(0, Math.min(100, audioLevel)) / 100) * 0.15),
-            height: size * (1.15 + (Math.max(0, Math.min(100, audioLevel)) / 100) * 0.15),
-            opacity: 0.4
+            width: size * 1.25,
+            height: size * 1.25,
+            animationDuration: '6s'
           }}
         />
       )}
 
       {/* Center Voice Orb Body */}
       <div
-        className="relative rounded-full transition-transform duration-200 flex items-center justify-center overflow-hidden shadow-xl"
+        className="relative rounded-full transition-transform duration-150 flex items-center justify-center overflow-hidden shadow-2xl"
         style={{
           width: size,
           height: size,
           transform: `scale(${pulse})`,
           background:
             state === 'speaking'
-              ? 'linear-gradient(145deg, #7F9970 0%, #4D6145 60%, #2A3626 100%)'
+              ? 'linear-gradient(135deg, #A8BE95 0%, #7F9970 50%, #4D6145 100%)'
               : state === 'listening'
-              ? 'linear-gradient(145deg, #8FCCA0 0%, #647C59 60%, #1F2A1C 100%)'
+              ? 'linear-gradient(135deg, #BFE3C6 0%, #8FCCA0 50%, #647C59 100%)'
               : state === 'thinking'
-              ? 'linear-gradient(145deg, #C4A759 0%, #7F9970 60%, #2A3626 100%)'
-              : 'linear-gradient(145deg, #647C59 0%, #374632 70%, #141C13 100%)',
-          border: '1px solid rgba(255, 255, 255, 0.25)',
-          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 16px 40px rgba(0, 0, 0, 0.45)'
+              ? 'linear-gradient(135deg, #E3C98A 0%, #A8BE95 50%, #4D6145 100%)'
+              : 'linear-gradient(135deg, #7F9970 0%, #4D6145 60%, #2A3626 100%)',
+          border: '2px solid rgba(255, 255, 255, 0.35)',
+          boxShadow: 'inset 0 4px 20px rgba(255, 255, 255, 0.4), 0 12px 40px rgba(0, 0, 0, 0.5)'
         }}
       >
-        {/* Soft top-edge specular highlight */}
-        <div className="absolute top-1 inset-x-8 h-1/3 rounded-full bg-gradient-to-b from-white/20 to-transparent blur-[1px] pointer-events-none" />
+        {/* Glass specular highlights */}
+        <div className="absolute top-2 left-6 w-1/2 h-1/3 rounded-full bg-gradient-to-b from-white/50 to-transparent blur-[2px] pointer-events-none" />
+        <div className="absolute -bottom-4 right-4 w-2/3 h-1/2 rounded-full bg-gradient-to-t from-black/40 to-transparent blur-sm pointer-events-none" />
 
         {/* Dynamic center waveform / core particle */}
         <div className="relative z-10 flex items-center justify-center gap-1.5 px-4">
           {state === 'speaking' ? (
             <div className="flex items-center gap-1">
-              {[35, 70, 95, 75, 40].map((baseHeight, idx) => {
-                const calculatedHeight = Math.max(8, (baseHeight * Math.max(30, audioLevel || 55)) / 100);
-                return (
-                  <div
-                    key={idx}
-                    className="w-1 rounded-full bg-white/95 transition-all duration-75"
-                    style={{ height: `${calculatedHeight}px` }}
-                  />
-                );
-              })}
+              {[40, 75, 100, 85, 45].map((height, idx) => (
+                <div
+                  key={idx}
+                  className="w-1.5 rounded-full bg-white/90 shadow-sm transition-all duration-100"
+                  style={{
+                    height: `${Math.max(12, (height * (audioLevel || 60)) / 100)}px`
+                  }}
+                />
+              ))}
             </div>
           ) : state === 'listening' ? (
             <div className="flex items-center gap-1.5">
               {[1, 2, 3].map((dot) => (
                 <div
                   key={dot}
-                  className="w-2.5 h-2.5 rounded-full bg-mint-light/90 transition-opacity"
-                  style={{
-                    opacity: 0.4 + (audioLevel / 100) * 0.6
-                  }}
+                  className="w-3 h-3 rounded-full bg-mint-light animate-pulse"
+                  style={{ animationDelay: `${dot * 0.2}s` }}
                 />
               ))}
             </div>
           ) : state === 'thinking' ? (
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-gold-light/90 animate-pulse" />
-              <span className="w-2 h-2 rounded-full bg-gold-light/90 animate-pulse delay-100" />
-              <span className="w-2 h-2 rounded-full bg-gold-light/90 animate-pulse delay-200" />
-            </div>
+            <div className="w-8 h-8 rounded-full border-2 border-white/80 border-t-transparent animate-spin" />
           ) : (
-            <div className="w-3 h-3 rounded-full bg-white/60" />
+            <div className="w-4 h-4 rounded-full bg-white/70 shadow-lg shadow-white/40 animate-pulse" />
           )}
         </div>
       </div>
 
       {/* Status indicator text */}
-      <div className="mt-5 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-medium text-text-primary">
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              state === 'speaking'
-                ? 'bg-mint'
-                : state === 'listening'
-                ? 'bg-mint'
-                : state === 'thinking'
-                ? 'bg-gold'
-                : 'bg-sage-400'
-            }`}
-          />
-          <span className="tracking-wide">
-            {stateLabels[state]}
-          </span>
+      {showStatus && (showStatusBadge || subtext) && (
+        <div className="mt-5 text-center">
+          {showStatusBadge && (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sage-900/40 border border-sage-300/20 backdrop-blur-md">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  state === 'speaking'
+                    ? 'bg-sage-300 animate-ping'
+                    : state === 'listening'
+                    ? 'bg-mint animate-pulse'
+                    : state === 'thinking'
+                    ? 'bg-gold animate-spin'
+                    : 'bg-sage-400'
+                }`}
+              />
+              <span className="text-xs font-medium tracking-wide text-text-primary">
+                {stateLabels[state]}
+              </span>
+            </div>
+          )}
+          {subtext && <p className="text-xs text-text-muted mt-1.5 max-w-xs">{subtext}</p>}
         </div>
-        {subtext && <p className="text-xs text-text-muted mt-0.5 max-w-xs">{subtext}</p>}
-      </div>
+      )}
     </div>
   );
 };
