@@ -14,7 +14,17 @@ import { LoginPage } from './components/auth/LoginPage';
 import { isUserAdmin } from './utils/authGuards';
 
 export default function App() {
-  const { currentView, currentUser } = useAppStore();
+  const { currentView, currentUser, isDark } = useAppStore();
+
+  React.useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light-theme');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light-theme');
+    }
+  }, [isDark]);
 
   return (
     <div className="relative min-h-screen text-text-primary overflow-x-hidden selection:bg-sage-500/30 selection:text-sage-100 flex flex-col justify-between">

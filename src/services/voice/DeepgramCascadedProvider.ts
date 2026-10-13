@@ -269,6 +269,13 @@ export class DeepgramCascadedProvider implements VoiceProvider {
   private processAudioBuffer(float32Data: Float32Array): void {
     if (!this.isRunning) return;
 
+    // Strict Echo-Prevention & User Mute Guard:
+    // If mic is muted, suppress audio level to zero and never stream to STT
+    if (this.isMicMuted) {
+      this.events?.onAudioLevel(0);
+      return;
+    }
+
     // 1. Calculate audio level (RMS)
     let sum = 0;
     for (let i = 0; i < float32Data.length; i++) {
@@ -282,10 +289,6 @@ export class DeepgramCascadedProvider implements VoiceProvider {
       this.lastAudioDetectedTime = Date.now();
       this.hasReportedSilence = false;
     }
-
-    // 2. Strict Echo-Prevention Guard:
-    // Do not stream mic to STT during AI_SPEAKING (or when mic is muted)
-    if (this.isMicMuted) return;
 
     // 3. Convert Float32Array to 16-bit linear PCM at 16000 Hz
     if (!this.audioCtx) return;
@@ -328,7 +331,14 @@ export class DeepgramCascadedProvider implements VoiceProvider {
 
   setMicMuted(muted: boolean): void {
     this.isMicMuted = muted;
-    if (!muted) {
+    if (this.mediaStream) {
+      this.mediaStream.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+    }
+    if (muted) {
+      this.events?.onAudioLevel(0);
+    } else {
       this.lastAudioDetectedTime = Date.now();
       this.hasReportedSilence = false;
     }

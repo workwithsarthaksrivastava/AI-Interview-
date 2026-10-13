@@ -272,5 +272,8 @@ Rules:
         track.enabled = !muted;
       });
     }
+    if (muted) {
+      this.events?.onAudioLevel(0);
+    }
   }
 }

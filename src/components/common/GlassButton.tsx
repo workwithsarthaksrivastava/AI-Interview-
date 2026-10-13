@@ -26,15 +26,15 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
 
   const variantClasses = {
     primary:
-      'bg-gradient-to-r from-sage-500 to-sage-600 text-white shadow-lg shadow-sage-900/40 hover:from-sage-400 hover:to-sage-500 hover:shadow-sage-700/50 active:scale-[0.97] border border-sage-400/30',
+      'bg-gradient-to-r from-sage-500 to-sage-600 dark:from-sage-500 dark:to-sage-600 text-white shadow-lg shadow-sage-900/40 hover:from-sage-400 hover:to-sage-500 hover:shadow-sage-700/50 active:scale-[0.97] border border-sage-400/30',
     secondary:
-      'bg-sage-400/10 hover:bg-sage-400/20 text-text-primary border border-sage-400/25 active:scale-[0.97]',
+      'bg-sage-400/10 dark:bg-sage-400/10 hover:bg-sage-400/20 dark:hover:bg-sage-400/20 text-text-primary border border-sage-400/25 active:scale-[0.97]',
     danger:
       'bg-gradient-to-r from-status-error/80 to-status-error text-white hover:brightness-110 active:scale-[0.97] border border-red-400/30 shadow-md',
     ghost:
-      'bg-transparent hover:bg-sage-500/15 text-text-secondary hover:text-text-primary active:scale-[0.97]',
+      'bg-transparent hover:bg-sage-500/15 dark:hover:bg-sage-500/15 text-text-secondary hover:text-text-primary active:scale-[0.97]',
     mint:
-      'bg-mint/20 hover:bg-mint/30 text-mint-light border border-mint/30 active:scale-[0.97]'
+      'bg-mint/20 dark:bg-mint/20 hover:bg-mint/30 dark:hover:bg-mint/30 text-sage-800 dark:text-mint-light border border-mint/30 active:scale-[0.97]'
   };
 
   return (

@@ -248,7 +248,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().addToast('info', 'Signed out successfully');
   },
 
-  isDark: true,
+  isDark: false,
   toggleTheme: () => {
     const next = !get().isDark;
     set({ isDark: next });

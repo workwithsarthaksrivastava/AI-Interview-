@@ -19,6 +19,23 @@ export class WebSpeechProvider implements VoiceProvider {
 
   setMicMuted(muted: boolean): void {
     this.isMicMuted = muted;
+    if (this.mediaStream) {
+      this.mediaStream.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+    }
+    if (muted) {
+      this.events?.onAudioLevel(0);
+      if (this.recognition) {
+        try {
+          this.recognition.abort();
+        } catch {}
+      }
+    } else if (!muted && this.isRunning && this.recognition) {
+      try {
+        this.recognition.start();
+      } catch {}
+    }
   }
 
   async start(config: VoiceSessionConfig, events: VoiceProviderEvents): Promise<void> {

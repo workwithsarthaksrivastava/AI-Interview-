@@ -44,13 +44,6 @@ export const LandingPage: React.FC = () => {
     <div className="relative overflow-hidden space-y-20 py-8 sm:py-12 text-left">
       {/* Hero Section */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-8">
-        {/* Top Kicker */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sage-500/15 border border-sage-300/30 backdrop-blur-md">
-          <Sparkles className="w-3.5 h-3.5 text-gold animate-spin" />
-          <span className="text-xs font-semibold text-mint tracking-wide">
-            Conversational Voice AI & Technical Interview Engine
-          </span>
-        </div>
 
         {/* Hero Title */}
         <div className="space-y-4 max-w-4xl mx-auto">
@@ -70,19 +63,7 @@ export const LandingPage: React.FC = () => {
         <div className="relative py-6 flex items-center justify-center">
           <VoiceOrb state="speaking" audioLevel={65} size={210} subtext="Real-time conversational voice audio" />
 
-          {/* Floating Feature Card Left */}
-          <div className="hidden lg:block absolute left-4 top-1/4 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[200px] text-left animate-in fade-in slide-in-from-left duration-500">
-            <span className="text-[10px] uppercase font-bold text-mint block">Real-Time Audio</span>
-            <div className="text-base font-bold text-text-primary">Barge-In Interruption</div>
-            <p className="text-[10px] text-text-muted mt-0.5">Natural back-and-forth conversational turn-taking</p>
-          </div>
 
-          {/* Floating Feature Card Right */}
-          <div className="hidden lg:block absolute right-4 top-1/3 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[200px] text-left animate-in fade-in slide-in-from-right duration-500">
-            <span className="text-[10px] uppercase font-bold text-gold block">In-Depth Feedback</span>
-            <div className="text-base font-bold text-text-primary">12-Section Evaluation</div>
-            <p className="text-[10px] text-text-muted mt-0.5">Transcript evidence quotes & personalized practice plan</p>
-          </div>
         </div>
 
         {/* Hero CTA Button Cluster */}
@@ -195,7 +176,7 @@ export const LandingPage: React.FC = () => {
         <GlassCard className="p-8 sm:p-10 bg-gradient-to-r from-sage-950/70 via-sage-900/40 to-sage-950/70 border border-sage-400/30">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
             <div className="space-y-2">
-              <ShieldCheck className="w-6 h-6 text-mint" />
+              <ShieldCheck className="w-6 h-6 text-sage-600 dark:text-mint" />
               <h4 className="font-bold text-sm text-text-primary">Strict Privacy Guarantee</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
                 Candidate audio and session data are stored securely and associated only with your account.
@@ -203,7 +184,7 @@ export const LandingPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Zap className="w-6 h-6 text-gold" />
+              <Zap className="w-6 h-6 text-sage-700 dark:text-gold" />
               <h4 className="font-bold text-sm text-text-primary">Pre-Flight Lobby Calibration</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
                 Microphone frequency checks, speaker tests, and greeting calibration ensure optimal audio quality.
@@ -211,7 +192,7 @@ export const LandingPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Code className="w-6 h-6 text-mint" />
+              <Code className="w-6 h-6 text-sage-600 dark:text-mint" />
               <h4 className="font-bold text-sm text-text-primary">Interactive Coding & Board</h4>
               <p className="text-xs text-text-secondary leading-relaxed">
                 Discuss data structures, test edge cases, and run code while discussing Big-O complexity with the AI interviewer.

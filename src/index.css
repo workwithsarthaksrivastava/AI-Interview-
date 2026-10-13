@@ -37,9 +37,11 @@
 
 :root {
   --bg-base: #0F1710;
+  --bg-surface: #152218;
   --text-primary: #EAF1E6;
   --text-secondary: #B5C4AF;
   --text-muted: #7A8A74;
+  --border-subtle: #2A3626;
 
   --glass-bg: rgba(156, 175, 136, 0.08);
   --glass-border: rgba(200, 220, 190, 0.16);
@@ -49,9 +51,11 @@
 
 .light-theme {
   --bg-base: #EEF3EC;
+  --bg-surface: #FFFFFF;
   --text-primary: #1F2A1C;
   --text-secondary: #4B5A47;
   --text-muted: #7A8776;
+  --border-subtle: #CFDDC9;
 
   --glass-bg: rgba(255, 255, 255, 0.55);
   --glass-border: rgba(255, 255, 255, 0.7);
@@ -122,7 +126,15 @@ h1, h2, h3, h4, h5, h6 {
   background: #E4EDE0 !important;
 }
 
-/* Atmospheric Drifting Mesh Blobs */
+/* Custom utility classes for theme support */
+@layer utilities {
+  .text-text-primary { color: var(--text-primary); }
+  .text-text-secondary { color: var(--text-secondary); }
+  .text-text-muted { color: var(--text-muted); }
+  .bg-bg-base { background-color: var(--bg-base); }
+  .bg-bg-surface { background-color: var(--bg-surface); }
+  .border-subtle { border-color: var(--border-subtle); }
+}
 @keyframes blob-drift-1 {
   0%, 100% {
     transform: translate(0px, 0px) scale(1);
