@@ -139,51 +139,6 @@ export const LiveInterviewRoom: React.FC = () => {
   const codeSnippetRef = useRef<string>(codeSnippet);
   codeSnippetRef.current = codeSnippet;
 
-  const isMutedRef = useRef<boolean>(isMuted);
-  isMutedRef.current = isMuted;
-
-  const toggleMute = useCallback(() => {
-    const nextMute = !isMutedRef.current;
-    setIsMuted(nextMute);
-    isMutedRef.current = nextMute;
-    voiceService.setMicMuted(nextMute);
-
-    if (nextMute) {
-      setAudioInputLevel(0);
-      setInterimTranscript('');
-      interimTranscriptRef.current = '';
-      bufferedCandidateTextRef.current = '';
-      if (speechDebounceTimerRef.current) {
-        clearTimeout(speechDebounceTimerRef.current);
-        speechDebounceTimerRef.current = null;
-      }
-      if (interimSilenceTimerRef.current) {
-        clearTimeout(interimSilenceTimerRef.current);
-        interimSilenceTimerRef.current = null;
-      }
-      setSilenceWarning('');
-      addToast('info', 'Microphone muted. AI cannot hear you.');
-    } else {
-      addToast('success', 'Microphone unmuted.');
-    }
-  }, [setIsMuted, addToast]);
-
-  // Keyboard shortcut for muting: 'm' or 'M'
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        return;
-      }
-      if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        toggleMute();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleMute]);
-
   const hasNudgedThisQuestionRef = useRef<boolean>(false);
 
   // Text fallback mode
@@ -335,11 +290,8 @@ export const LiveInterviewRoom: React.FC = () => {
       isPlayingTtsRef.current = false;
 
       // Reopen mic to STT exactly 300ms after TTS fully ends so AI never hears itself!
-      // Only unmute if candidate has not manually muted their mic!
       setTimeout(() => {
-        if (!isMutedRef.current) {
-          voiceService.setMicMuted(false);
-        }
+        voiceService.setMicMuted(false);
         if (engineStateRef.current === 'AI_SPEAKING') {
           transitionEngineState('LISTENING');
         }
@@ -404,9 +356,7 @@ export const LiveInterviewRoom: React.FC = () => {
   const handleBargeIn = useCallback(() => {
     if (engineStateRef.current === 'AI_SPEAKING' || isPlayingTtsRef.current) {
       stopTtsAndClearQueue();
-      if (!isMutedRef.current) {
-        voiceService.setMicMuted(false);
-      }
+      voiceService.setMicMuted(false);
       transitionEngineState('USER_SPEAKING');
       addToast('info', 'AI paused — listening to you.');
     }
@@ -718,7 +668,7 @@ export const LiveInterviewRoom: React.FC = () => {
         },
         {
           onTranscript: (event) => {
-            if (!isMounted || isMutedRef.current) return;
+            if (!isMounted) return;
 
             setSilenceWarning('');
             setSilenceSeconds(0);
@@ -752,7 +702,6 @@ export const LiveInterviewRoom: React.FC = () => {
                 clearTimeout(interimSilenceTimerRef.current);
               }
               interimSilenceTimerRef.current = setTimeout(() => {
-                if (isMutedRef.current) return;
                 const text = (bufferedCandidateTextRef.current.trim() || interimTranscriptRef.current.trim()).trim();
                 if (text && engineStateRef.current === 'USER_SPEAKING') {
                   bufferedCandidateTextRef.current = '';
@@ -764,7 +713,7 @@ export const LiveInterviewRoom: React.FC = () => {
             }
           },
           onSpeechStarted: () => {
-            if (!isMounted || isMutedRef.current) return;
+            if (!isMounted) return;
             setSilenceWarning('');
             setSilenceSeconds(0);
             if (engineStateRef.current === 'AI_SPEAKING') {
@@ -774,22 +723,18 @@ export const LiveInterviewRoom: React.FC = () => {
             }
           },
           onUtteranceEnd: () => {
-            if (!isMounted || isMutedRef.current) return;
+            if (!isMounted) return;
             scheduleFinalSpeechTrigger();
           },
           onAudioLevel: (lvl) => {
             if (!isMounted) return;
-            if (isMutedRef.current) {
-              setAudioInputLevel(0);
-              return;
-            }
             setAudioInputLevel(lvl);
             if (lvl > 2) {
               setSilenceWarning('');
             }
           },
           onSilenceWarning: (msg) => {
-            if (!isMounted || isMutedRef.current) return;
+            if (!isMounted) return;
             if (engineStateRef.current === 'LISTENING') {
               setSilenceWarning(msg);
             }
@@ -923,11 +868,9 @@ export const LiveInterviewRoom: React.FC = () => {
 
   const handleRetryMic = () => {
     setSilenceWarning('');
-    setIsMuted(false);
-    isMutedRef.current = false;
     voiceService.setMicMuted(false);
     transitionEngineState('LISTENING');
-    addToast('info', 'Microphone connection refreshed and unmuted.');
+    addToast('info', 'Microphone connection refreshed.');
   };
 
   // -------------------------------------------------------------
@@ -1084,19 +1027,18 @@ export const LiveInterviewRoom: React.FC = () => {
         {/* Sleek Active Question & Interactive Probe Banner */}
         <div className="w-full px-4 sm:px-5 py-3.5 mb-4 rounded-2xl glass-2 border border-sage-300/25 shadow-xl text-left transition-all animate-in fade-in">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-semibold text-mint text-[11px] tracking-wider uppercase">
-                Stage {Math.min(currentQuestionIndex + 1, totalQuestions)} of {totalQuestions}
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-lg bg-sage-500/20 border border-sage-300/20 text-mint font-semibold text-[10px] tracking-wider uppercase">
+                Stage {Math.min(currentQuestionIndex + 1, totalQuestions)} of {totalQuestions} · {currentQ?.category || 'Technical'}
               </span>
-              <span aria-hidden="true" className="text-sage-400/40">·</span>
-              <span className="text-text-secondary text-[11px] font-medium">{currentQ?.category || 'Technical'}</span>
-              <span aria-hidden="true" className="text-sage-400/40">·</span>
               {activeProbeText ? (
-                <span className="text-gold font-semibold text-[11px] flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-gold" /> Follow-Up Probe ({followUpProbeCount || 1}/2)
+                <span className="px-2.5 py-0.5 rounded-full bg-gold/20 border border-gold/40 text-gold-light text-[10px] font-bold flex items-center gap-1 animate-pulse">
+                  <Zap className="w-3 h-3 text-gold" /> Creative Follow-Up Probe ({followUpProbeCount || 1}/2)
                 </span>
               ) : (
-                <span className="text-text-muted text-[11px]">Core Bar Question</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-mint/20 border border-mint/40 text-mint text-[10px] font-semibold">
+                  Core Evaluation Question
+                </span>
               )}
             </div>
             <span className="text-[10px] text-text-muted hidden sm:inline">
@@ -1217,17 +1159,9 @@ export const LiveInterviewRoom: React.FC = () => {
               muted={true}
               className="w-full h-full object-cover"
             />
-            <div className="absolute top-2 left-2 flex items-center gap-1.5 pointer-events-none">
-              <div className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] font-semibold text-mint flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-mint animate-pulse" />
-                <span>Live Video</span>
-              </div>
-              {isMuted && (
-                <div className="px-2 py-0.5 rounded-md bg-status-error/85 backdrop-blur-sm text-[10px] font-semibold text-white flex items-center gap-1">
-                  <MicOff className="w-2.5 h-2.5" />
-                  <span>Muted</span>
-                </div>
-              )}
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] font-semibold text-mint flex items-center gap-1.5 pointer-events-none">
+              <span className="w-2 h-2 rounded-full bg-mint animate-pulse" />
+              <span>Live Video</span>
             </div>
 
             {/* Controls overlay on hover */}
@@ -1250,22 +1184,12 @@ export const LiveInterviewRoom: React.FC = () => {
           </div>
         ) : (
           <div className="w-full h-full bg-sage-950/80 flex flex-col items-center justify-center gap-1.5 p-3 text-center">
-            <div className="w-8 h-8 rounded-full bg-sage-500/20 text-text-muted flex items-center justify-center relative">
+            <div className="w-8 h-8 rounded-full bg-sage-500/20 text-text-muted flex items-center justify-center">
               <User className="w-4 h-4" />
-              {isMuted && (
-                <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-status-error text-white flex items-center justify-center">
-                  <MicOff className="w-2 h-2" />
-                </span>
-              )}
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-text-muted truncate max-w-[100px]">
-                {currentUser.name || 'Candidate'}
-              </span>
-              {isMuted && (
-                <span className="text-[9px] font-bold text-status-error uppercase">Muted</span>
-              )}
-            </div>
+            <span className="text-[10px] text-text-muted truncate max-w-full px-1">
+              {currentUser.name || 'Candidate'}
+            </span>
             <button
               onClick={startCamera}
               className="px-2.5 py-1 rounded-lg bg-mint/20 hover:bg-mint/30 text-mint text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
@@ -1303,16 +1227,20 @@ export const LiveInterviewRoom: React.FC = () => {
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Mute toggle */}
             <button
-              onClick={toggleMute}
-              className={`px-3 py-2 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
+              onClick={() => {
+                const nextMute = !isMuted;
+                setIsMuted(nextMute);
+                voiceService.setMicMuted(nextMute);
+                addToast('info', nextMute ? 'Microphone muted.' : 'Microphone unmuted.');
+              }}
+              className={`p-2.5 rounded-xl border transition-all ${
                 isMuted
-                  ? 'bg-status-error/20 border-status-error text-status-error hover:bg-status-error/30'
+                  ? 'bg-status-error/20 border-status-error text-status-error'
                   : 'bg-sage-500/15 border-sage-300/20 text-mint hover:bg-sage-500/25'
               }`}
-              title={isMuted ? 'Unmute microphone (Press M)' : 'Mute microphone (Press M)'}
+              title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
             >
               {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              <span className="text-xs font-semibold hidden sm:inline">{isMuted ? 'Unmute' : 'Mute'}</span>
             </button>
 
             {/* Camera toggle */}

@@ -118,7 +118,7 @@ export const Step2CompanySelect: React.FC = () => {
                   View Interview Persona Profile
                 </button>
 
-                <span className="text-xs text-text-muted font-medium">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sage-500/15 text-sage-200 border border-sage-300/20 font-medium">
                   {company.personaProfile.difficulty} Bar
                 </span>
               </div>

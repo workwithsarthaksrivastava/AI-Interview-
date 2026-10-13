@@ -145,10 +145,11 @@ export const CandidateDashboard: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-1">
-                      <span className="font-bold text-text-primary">{report.companyName}</span>
-                      <span aria-hidden="true" className="text-sage-400/40">·</span>
-                      <span className="text-mint font-medium">{report.interviewType}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-text-primary">{report.companyName}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-sage-500/20 text-mint">
+                        {report.interviewType}
+                      </span>
                     </div>
                     <h3 className="font-semibold text-sm text-text-secondary">{report.roleTitle}</h3>
                   </div>

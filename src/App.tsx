@@ -18,9 +18,16 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen text-text-primary overflow-x-hidden selection:bg-sage-500/30 selection:text-sage-100 flex flex-col justify-between">
-      {/* Refined Architectural Backdrop */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-canvas-subtle" aria-hidden="true">
-        <div className="absolute inset-0 bg-architectural-grid opacity-60" />
+      {/* Layered Atmospheric Drifting Mesh Blobs */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        {/* Blob 1: Soft Sage */}
+        <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-sage-400/15 blur-[100px] animate-blob-1" />
+
+        {/* Blob 2: Mint Glow */}
+        <div className="absolute top-1/3 -right-32 w-[560px] h-[560px] rounded-full bg-mint/10 blur-[120px] animate-blob-2" />
+
+        {/* Blob 3: Pale Gold Warmth */}
+        <div className="absolute -bottom-32 left-1/4 w-[480px] h-[480px] rounded-full bg-gold/10 blur-[110px] animate-blob-3" />
       </div>
 
       {/* Glass Top Navigation (hidden during live call or initial login for full focus) */}

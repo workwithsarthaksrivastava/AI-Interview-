@@ -9,6 +9,7 @@ import { GlassButton } from '../common/GlassButton';
 import {
   Mic,
   Award,
+  Sparkles,
   ArrowRight,
   ShieldCheck,
   Zap,
@@ -43,6 +44,14 @@ export const LandingPage: React.FC = () => {
     <div className="relative overflow-hidden space-y-20 py-8 sm:py-12 text-left">
       {/* Hero Section */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-8">
+        {/* Top Kicker */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sage-500/15 border border-sage-300/30 backdrop-blur-md">
+          <Sparkles className="w-3.5 h-3.5 text-gold animate-spin" />
+          <span className="text-xs font-semibold text-mint tracking-wide">
+            Conversational Voice AI & Technical Interview Engine
+          </span>
+        </div>
+
         {/* Hero Title */}
         <div className="space-y-4 max-w-4xl mx-auto">
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-text-primary leading-[1.15]">
@@ -57,9 +66,23 @@ export const LandingPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Centerpiece Voice Orb */}
+        {/* Centerpiece Voice Orb with Real Feature Badges */}
         <div className="relative py-6 flex items-center justify-center">
-          <VoiceOrb state="speaking" audioLevel={65} size={210} showStatusBadge={false} />
+          <VoiceOrb state="speaking" audioLevel={65} size={210} subtext="Real-time conversational voice audio" />
+
+          {/* Floating Feature Card Left */}
+          <div className="hidden lg:block absolute left-4 top-1/4 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[200px] text-left animate-in fade-in slide-in-from-left duration-500">
+            <span className="text-[10px] uppercase font-bold text-mint block">Real-Time Audio</span>
+            <div className="text-base font-bold text-text-primary">Barge-In Interruption</div>
+            <p className="text-[10px] text-text-muted mt-0.5">Natural back-and-forth conversational turn-taking</p>
+          </div>
+
+          {/* Floating Feature Card Right */}
+          <div className="hidden lg:block absolute right-4 top-1/3 -translate-y-1/2 rounded-2xl glass-2 p-3.5 border border-sage-300/25 shadow-xl max-w-[200px] text-left animate-in fade-in slide-in-from-right duration-500">
+            <span className="text-[10px] uppercase font-bold text-gold block">In-Depth Feedback</span>
+            <div className="text-base font-bold text-text-primary">12-Section Evaluation</div>
+            <p className="text-[10px] text-text-muted mt-0.5">Transcript evidence quotes & personalized practice plan</p>
+          </div>
         </div>
 
         {/* Hero CTA Button Cluster */}

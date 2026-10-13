@@ -679,8 +679,8 @@ export const Step5LobbyCalibration: React.FC = () => {
           </div>
 
           {sampleTestPassed && (
-            <span className="text-xs font-semibold text-mint flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-mint" /> Calibration Verified
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-mint/20 text-mint border border-mint/30 flex items-center gap-1">
+              <CheckCircle2 className="w-4 h-4" /> Calibration Passed
             </span>
           )}
         </div>

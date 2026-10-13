@@ -8,8 +8,6 @@ interface VoiceOrbProps {
   size?: number; // in pixels
   className?: string;
   subtext?: string;
-  showStatus?: boolean;
-  showStatusBadge?: boolean;
 }
 
 export const VoiceOrb: React.FC<VoiceOrbProps> = ({
@@ -17,9 +15,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
   audioLevel = 0,
   size = 220,
   className = '',
-  subtext,
-  showStatus = true,
-  showStatusBadge = true
+  subtext
 }) => {
   // Pure dynamic audio reactivity without state update loops
   const pulse =
@@ -144,29 +140,25 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
       </div>
 
       {/* Status indicator text */}
-      {showStatus && (showStatusBadge || subtext) && (
-        <div className="mt-5 text-center">
-          {showStatusBadge && (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sage-900/40 border border-sage-300/20 backdrop-blur-md">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  state === 'speaking'
-                    ? 'bg-sage-300 animate-ping'
-                    : state === 'listening'
-                    ? 'bg-mint animate-pulse'
-                    : state === 'thinking'
-                    ? 'bg-gold animate-spin'
-                    : 'bg-sage-400'
-                }`}
-              />
-              <span className="text-xs font-medium tracking-wide text-text-primary">
-                {stateLabels[state]}
-              </span>
-            </div>
-          )}
-          {subtext && <p className="text-xs text-text-muted mt-1.5 max-w-xs">{subtext}</p>}
+      <div className="mt-5 text-center">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sage-900/40 border border-sage-300/20 backdrop-blur-md">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              state === 'speaking'
+                ? 'bg-sage-300 animate-ping'
+                : state === 'listening'
+                ? 'bg-mint animate-pulse'
+                : state === 'thinking'
+                ? 'bg-gold animate-spin'
+                : 'bg-sage-400'
+            }`}
+          />
+          <span className="text-xs font-medium tracking-wide text-text-primary">
+            {stateLabels[state]}
+          </span>
         </div>
-      )}
+        {subtext && <p className="text-xs text-text-muted mt-1.5 max-w-xs">{subtext}</p>}
+      </div>
     </div>
   );
 };

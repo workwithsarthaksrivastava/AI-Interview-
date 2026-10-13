@@ -184,10 +184,10 @@ export const Step1ResumeUpload: React.FC = () => {
           <GlassCard className="p-6 bg-gradient-to-r from-sage-950/40 via-sage-900/30 to-sage-950/40 border border-sage-400/30">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-sage-300/15">
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-text-primary tracking-tight">{parsedResume.name}</h3>
-                  <span className="text-xs text-mint font-medium">
-                    · {parsedResume.seniorityEstimate} (~{parsedResume.yearsOfExperience} yrs experience)
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-lg font-bold text-text-primary">{parsedResume.name}</h3>
+                  <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-mint/20 text-mint border border-mint/30">
+                    {parsedResume.seniorityEstimate} (~{parsedResume.yearsOfExperience} yrs exp)
                   </span>
                 </div>
                 <p className="text-xs text-text-secondary mt-1">{parsedResume.summary}</p>

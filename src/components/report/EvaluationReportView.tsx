@@ -15,7 +15,6 @@ import {
   UserCheck,
   CheckCircle2,
   AlertTriangle,
-  AlertOctagon,
   FileText,
   Volume2,
   Video,
@@ -85,11 +84,11 @@ export const EvaluationReportView: React.FC = () => {
       {/* 1. Header & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
-          <span className="text-[11px] uppercase font-bold tracking-widest text-mint block">
-            Executive Bar-Raiser Evaluation
+          <span className="text-xs uppercase font-bold tracking-wider text-mint flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" /> Official AI Bar-Raiser Report
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary tracking-tight mt-1">
-            Performance & Hire-Readiness Report
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary tracking-tight mt-0.5">
+            Performance & Hire-Readiness Evaluation
           </h1>
           <p className="text-xs text-text-secondary mt-1">
             Generated on {r.date} · Evaluated against {r.companyName}'s canonical hiring bar
@@ -127,17 +126,21 @@ export const EvaluationReportView: React.FC = () => {
       </div>
 
       {/* 2. Cover & Verdict Summary Card */}
-      <GlassCard className="p-6 sm:p-8 bg-sage-950/40 border border-sage-400/25 shadow-xl">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-sage-300/15">
+      <GlassCard className="p-6 sm:p-8 bg-gradient-to-br from-sage-950/60 via-sage-900/40 to-sage-950/60 border border-sage-400/40 shadow-2xl">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-sage-300/20">
           <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-mint mb-2">
-              <span className="font-semibold text-text-primary">{r.companyName}</span>
-              <span aria-hidden="true" className="text-sage-400/40">·</span>
-              <span className="text-text-secondary">{r.roleTitle}</span>
-              <span aria-hidden="true" className="text-sage-400/40">·</span>
-              <span className="text-text-muted">{r.difficulty} Bar</span>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-sage-500/25 text-mint border border-sage-300/30">
+                {r.companyName}
+              </span>
+              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-sage-950/60 text-text-secondary border border-sage-300/20">
+                {r.roleTitle}
+              </span>
+              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-sage-950/60 text-text-secondary border border-sage-300/20">
+                {r.difficulty} Bar
+              </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-text-primary tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary">
               Candidate: {r.candidateName}
             </h2>
             <p className="text-xs text-text-muted mt-1">
@@ -286,39 +289,6 @@ export const EvaluationReportView: React.FC = () => {
                   ))}
                 </div>
               </GlassCard>
-
-              {/* Bar-Raiser Red Flags (if identified) */}
-              {r.redFlags && r.redFlags.length > 0 && (
-                <GlassCard className="p-6 space-y-3 border-status-error/30 bg-status-error/5">
-                  <h3 className="text-sm font-bold text-status-error flex items-center gap-2">
-                    <AlertOctagon className="w-4 h-4 text-status-error" />
-                    Bar-Raiser Red Flags & Critical Risks ({r.redFlags.length})
-                  </h3>
-                  <div className="space-y-2.5">
-                    {r.redFlags.map((rf, idx) => (
-                      <div key={idx} className="p-3 rounded-xl bg-sage-950/50 border border-status-error/25 text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-text-primary">{rf.flag}</span>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                            rf.severity === 'High'
-                              ? 'bg-status-error/20 text-status-error'
-                              : rf.severity === 'Medium'
-                              ? 'bg-gold/20 text-gold'
-                              : 'text-text-muted'
-                          }`}>
-                            {rf.severity} Severity
-                          </span>
-                        </div>
-                        {rf.excerpt && (
-                          <blockquote className="text-[11px] text-text-secondary italic border-l-2 border-status-error/40 pl-2">
-                            "{rf.excerpt}"
-                          </blockquote>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              )}
             </div>
           </div>
 
