@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-heading: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -17,9 +19,9 @@
   --color-sage-900: #2A3626;
   --color-sage-950: #141C13;
 
-  --color-mint: #BFE3C6;
-  --color-mint-light: #D9F1DE;
-  --color-mint-dark: #8FCCA0;
+  --color-mint: var(--color-mint-token);
+  --color-mint-light: var(--color-mint-light-token);
+  --color-mint-dark: var(--color-mint-dark-token);
 
   --color-clay: #D9B8A0;
   --color-clay-hover: #C5A187;
@@ -36,6 +38,10 @@
 }
 
 :root {
+  --color-mint-token: #065F46;
+  --color-mint-light-token: #064E3B;
+  --color-mint-dark-token: #022C22;
+
   --bg-base: #0F1710;
   --bg-surface: #152218;
   --text-primary: #EAF1E6;
@@ -49,18 +55,52 @@
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.light-theme {
-  --bg-base: #EEF3EC;
-  --bg-surface: #FFFFFF;
-  --text-primary: #1F2A1C;
-  --text-secondary: #4B5A47;
-  --text-muted: #7A8776;
-  --border-subtle: #CFDDC9;
+.dark {
+  --color-mint-token: #6EE7B7;
+  --color-mint-light-token: #A7F3D0;
+  --color-mint-dark-token: #34D399;
+}
 
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.7);
-  --glass-shadow: 0 8px 32px rgba(77, 97, 69, 0.12);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+.light-theme {
+  --color-mint-token: #065F46;
+  --color-mint-light-token: #064E3B;
+  --color-mint-dark-token: #022C22;
+
+  --bg-base: #F4F6F4;
+  --bg-surface: #FFFFFF;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --border-subtle: #CBD5E1;
+
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(203, 213, 225, 0.8);
+  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Force high contrast dark emerald for mint text in light mode across the entire app */
+:root:not(.dark) .text-mint,
+.light-theme .text-mint,
+:root:not(.dark) [class*="text-mint"],
+.light-theme [class*="text-mint"] {
+  color: #065F46 !important;
+}
+
+:root:not(.dark) .text-mint-light,
+.light-theme .text-mint-light,
+:root:not(.dark) [class*="text-mint-light"],
+.light-theme [class*="text-mint-light"] {
+  color: #064E3B !important;
+}
+
+.dark .text-mint,
+.dark [class*="text-mint"] {
+  color: #6EE7B7 !important;
+}
+
+.dark .text-mint-light {
+  color: #A7F3D0 !important;
 }
 
 body {
@@ -68,6 +108,22 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow-x: hidden;
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth transitions for theme switching across main containers */
+header,
+main,
+footer,
+nav,
+section,
+.glass-1,
+.glass-2,
+.glass-3 {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -185,6 +241,17 @@ h1, h2, h3, h4, h5, h6 {
   .animate-blob-2,
   .animate-blob-3 {
     animation: none !important;
+  }
+  body,
+  header,
+  main,
+  footer,
+  nav,
+  section,
+  .glass-1,
+  .glass-2,
+  .glass-3 {
+    transition: none !important;
   }
 }
 

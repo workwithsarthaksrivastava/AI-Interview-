@@ -26,15 +26,15 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
 
   const variantClasses = {
     primary:
-      'bg-gradient-to-r from-sage-500 to-sage-600 dark:from-sage-500 dark:to-sage-600 text-white shadow-lg shadow-sage-900/40 hover:from-sage-400 hover:to-sage-500 hover:shadow-sage-700/50 active:scale-[0.97] border border-sage-400/30',
+      'bg-gradient-to-r from-sage-600 to-sage-700 dark:from-sage-500 dark:to-sage-600 text-white shadow-lg shadow-sage-900/40 hover:from-sage-500 hover:to-sage-600 hover:shadow-sage-700/50 active:scale-[0.97] border border-sage-500/50 font-semibold',
     secondary:
-      'bg-sage-400/10 dark:bg-sage-400/10 hover:bg-sage-400/20 dark:hover:bg-sage-400/20 text-text-primary border border-sage-400/25 active:scale-[0.97]',
+      'bg-white dark:bg-sage-400/10 hover:bg-sage-50 dark:hover:bg-sage-400/20 text-text-primary border border-sage-500/40 active:scale-[0.97] font-semibold shadow-sm',
     danger:
       'bg-gradient-to-r from-status-error/80 to-status-error text-white hover:brightness-110 active:scale-[0.97] border border-red-400/30 shadow-md',
     ghost:
-      'bg-transparent hover:bg-sage-500/15 dark:hover:bg-sage-500/15 text-text-secondary hover:text-text-primary active:scale-[0.97]',
+      'bg-transparent hover:bg-sage-500/15 dark:hover:bg-sage-500/15 text-text-primary hover:text-text-primary active:scale-[0.97] font-semibold',
     mint:
-      'bg-mint/20 dark:bg-mint/20 hover:bg-mint/30 dark:hover:bg-mint/30 text-sage-800 dark:text-mint-light border border-mint/30 active:scale-[0.97]'
+      'bg-white dark:bg-emerald-950/70 hover:bg-emerald-50/70 dark:hover:bg-emerald-900/80 text-emerald-950 dark:text-emerald-200 border-2 border-emerald-800/70 dark:border-emerald-500/50 active:scale-[0.97] font-bold shadow-sm'
   };
 
   return (

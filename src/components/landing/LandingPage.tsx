@@ -49,8 +49,8 @@ export const LandingPage: React.FC = () => {
         <div className="space-y-4 max-w-4xl mx-auto">
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-text-primary leading-[1.15]">
             Master Real Interviews with <br />
-            <span className="bg-gradient-to-r from-sage-300 via-mint to-sage-400 bg-clip-text text-transparent">
-              Live Conversational AI
+            <span className="bg-gradient-to-r from-sage-700 via-emerald-700 to-sage-800 dark:from-sage-300 dark:via-mint dark:to-sage-400 bg-clip-text text-transparent">
+              Shakchhatkar AI
             </span>
           </h1>
 
@@ -91,7 +91,7 @@ export const LandingPage: React.FC = () => {
             variant="mint"
             size="lg"
             onClick={handleViewSampleReport}
-            icon={<Award className="w-5 h-5" />}
+            icon={<Award className="w-5 h-5 text-emerald-950 dark:text-emerald-200" />}
           >
             View Sample 12-Section Report
           </GlassButton>
